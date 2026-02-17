@@ -243,7 +243,7 @@ export default function Dashboard() {
   const improvements = topImprovements || getDemoTopImprovements()
 
   return (
-    <div className="p-6 max-w-[1400px]">
+    <div className="py-6 px-16">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-100">Dashboard</h1>
         <p className="text-sm text-slate-500 mt-0.5">Overview of continuous improvement performance</p>
