@@ -6,9 +6,9 @@ import InitiativeDetail from './pages/InitiativeDetail'
 
 function App() {
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-950">
       <Navbar />
-      <main className="flex-1 ml-64">
+      <main className="flex-1 ml-16">
         <Routes>
           <Route path="/" element={<Board />} />
           <Route path="/dashboard" element={<Dashboard />} />

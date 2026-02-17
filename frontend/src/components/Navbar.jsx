@@ -15,25 +15,20 @@ export default function Navbar() {
   const navigate = useNavigate()
 
   return (
-    <nav className="fixed left-0 top-0 bottom-0 w-64 bg-slate-900 text-white flex flex-col z-50">
+    <nav className="fixed left-0 top-0 bottom-0 w-16 hover:w-56 bg-slate-950 border-r border-slate-800/60 text-white flex flex-col z-50 transition-all duration-200 overflow-hidden group/nav">
       {/* Logo */}
-      <div className="px-6 py-6 border-b border-slate-700/50">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center">
-            <ArrowTrendingUpIcon className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">KaizenBoard</h1>
-            <p className="text-[11px] text-slate-400 tracking-wide uppercase">Continuous Improvement</p>
-          </div>
+      <div className="px-4 py-5 border-b border-slate-800/60 flex items-center gap-3 min-w-0">
+        <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
+          <ArrowTrendingUpIcon className="w-4.5 h-4.5 text-white" />
+        </div>
+        <div className="opacity-0 group-hover/nav:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+          <h1 className="text-sm font-semibold tracking-tight">KaizenBoard</h1>
+          <p className="text-[10px] text-slate-500 tracking-wide uppercase">Continuous Improvement</p>
         </div>
       </div>
 
       {/* Navigation Links */}
-      <div className="flex-1 px-3 py-4">
-        <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-          Navigation
-        </p>
+      <div className="flex-1 px-2 py-4">
         <ul className="space-y-1">
           {navItems.map(({ to, label, icon: Icon }) => (
             <li key={to}>
@@ -44,12 +39,14 @@ export default function Navbar() {
                   `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 ${
                     isActive
                       ? 'bg-emerald-500/15 text-emerald-400'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`
                 }
               >
-                <Icon className="w-5 h-5" />
-                {label}
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                <span className="opacity-0 group-hover/nav:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                  {label}
+                </span>
               </NavLink>
             </li>
           ))}
@@ -57,16 +54,18 @@ export default function Navbar() {
       </div>
 
       {/* New Initiative Button */}
-      <div className="px-4 py-4 border-t border-slate-700/50">
+      <div className="px-2 py-4 border-t border-slate-800/60">
         <button
           onClick={() => {
             navigate('/')
             window.dispatchEvent(new CustomEvent('open-new-initiative'))
           }}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors duration-150 cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors duration-150 cursor-pointer"
         >
-          <PlusIcon className="w-4 h-4" />
-          New Initiative
+          <PlusIcon className="w-4 h-4 flex-shrink-0" />
+          <span className="opacity-0 group-hover/nav:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+            New Initiative
+          </span>
         </button>
       </div>
     </nav>

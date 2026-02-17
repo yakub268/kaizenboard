@@ -49,7 +49,6 @@ const COLORS = {
   purple: 'rgb(168, 85, 247)',
 }
 
-// Convert array of {status/category, count} to lookup object
 function arrayToMap(arr, keyField) {
   const map = {}
   if (!arr) return map
@@ -61,17 +60,17 @@ function arrayToMap(arr, keyField) {
 
 function SummaryCard({ title, value, subtitle, icon: Icon, trend, trendUp }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200/80 p-6 card-hover">
+    <div className="bg-slate-900 rounded-xl border border-slate-800/80 p-6 card-hover">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className="text-3xl font-bold text-slate-800 mt-1">{value}</p>
+          <p className="text-sm font-medium text-slate-400">{title}</p>
+          <p className="text-3xl font-bold text-slate-100 mt-1">{value}</p>
           {subtitle && (
             <div className="flex items-center gap-1 mt-2">
               {trend !== undefined && (
                 <span
                   className={`flex items-center text-xs font-medium ${
-                    trendUp ? 'text-emerald-600' : 'text-red-500'
+                    trendUp ? 'text-emerald-400' : 'text-red-400'
                   }`}
                 >
                   {trendUp ? (
@@ -82,11 +81,11 @@ function SummaryCard({ title, value, subtitle, icon: Icon, trend, trendUp }) {
                   {trend}
                 </span>
               )}
-              <span className="text-xs text-slate-400">{subtitle}</span>
+              <span className="text-xs text-slate-500">{subtitle}</span>
             </div>
           )}
         </div>
-        <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center">
           <Icon className="w-6 h-6 text-slate-400" />
         </div>
       </div>
@@ -130,32 +129,25 @@ export default function Dashboard() {
     )
   }
 
-  // Transform API data
   const statusMap = arrayToMap(summary?.by_status, 'status')
   const categoryMap = arrayToMap(summary?.by_category, 'category')
   const activeCount = (statusMap.plan || 0) + (statusMap.implement || 0) + (statusMap.verify || 0)
 
-  // Chart: Initiatives by status
+  const chartGrid = 'rgba(51, 65, 85, 0.5)'
+  const chartTick = '#64748b'
+
   const statusChartData = {
     labels: ['Identify', 'Analyze', 'Plan', 'Implement', 'Verify', 'Sustain'],
     datasets: [
       {
         label: 'Initiatives',
         data: [
-          statusMap.identify || 0,
-          statusMap.analyze || 0,
-          statusMap.plan || 0,
-          statusMap.implement || 0,
-          statusMap.verify || 0,
-          statusMap.sustain || 0,
+          statusMap.identify || 0, statusMap.analyze || 0, statusMap.plan || 0,
+          statusMap.implement || 0, statusMap.verify || 0, statusMap.sustain || 0,
         ],
         backgroundColor: [
-          'rgba(100, 116, 139, 0.8)',
-          'rgba(59, 130, 246, 0.8)',
-          'rgba(139, 92, 246, 0.8)',
-          'rgba(245, 158, 11, 0.8)',
-          'rgba(6, 182, 212, 0.8)',
-          'rgba(16, 185, 129, 0.8)',
+          'rgba(100, 116, 139, 0.8)', 'rgba(59, 130, 246, 0.8)', 'rgba(139, 92, 246, 0.8)',
+          'rgba(245, 158, 11, 0.8)', 'rgba(6, 182, 212, 0.8)', 'rgba(16, 185, 129, 0.8)',
         ],
         borderRadius: 6,
         borderSkipped: false,
@@ -168,45 +160,23 @@ export default function Dashboard() {
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.9)',
-        titleFont: { family: 'Inter' },
-        bodyFont: { family: 'Inter' },
-        padding: 12,
-        cornerRadius: 8,
-      },
+      tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.95)', titleFont: { family: 'Inter' }, bodyFont: { family: 'Inter' }, padding: 12, cornerRadius: 8 },
     },
     scales: {
-      x: {
-        grid: { display: false },
-        ticks: { font: { family: 'Inter', size: 12 }, color: '#94a3b8' },
-      },
-      y: {
-        grid: { color: 'rgba(241, 245, 249, 1)' },
-        ticks: { font: { family: 'Inter', size: 12 }, color: '#94a3b8', stepSize: 1 },
-      },
+      x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 12 }, color: chartTick } },
+      y: { grid: { color: chartGrid }, ticks: { font: { family: 'Inter', size: 12 }, color: chartTick, stepSize: 1 } },
     },
   }
 
-  // Chart: Initiatives by category (doughnut)
   const categoryChartData = {
     labels: ['Waste Reduction', 'Cycle Time', 'Quality', 'Cost Savings', 'Safety'],
     datasets: [
       {
         data: [
-          categoryMap.waste_reduction || 0,
-          categoryMap.cycle_time || 0,
-          categoryMap.quality || 0,
-          categoryMap.cost_savings || 0,
-          categoryMap.safety || 0,
+          categoryMap.waste_reduction || 0, categoryMap.cycle_time || 0,
+          categoryMap.quality || 0, categoryMap.cost_savings || 0, categoryMap.safety || 0,
         ],
-        backgroundColor: [
-          COLORS.red,
-          COLORS.blue,
-          COLORS.purple,
-          COLORS.green,
-          COLORS.orange,
-        ],
+        backgroundColor: [COLORS.red, COLORS.blue, COLORS.purple, COLORS.green, COLORS.orange],
         borderWidth: 0,
         hoverOffset: 4,
       },
@@ -220,23 +190,12 @@ export default function Dashboard() {
     plugins: {
       legend: {
         position: 'bottom',
-        labels: {
-          padding: 16,
-          usePointStyle: true,
-          pointStyleWidth: 8,
-          font: { family: 'Inter', size: 12 },
-          color: '#64748b',
-        },
+        labels: { padding: 16, usePointStyle: true, pointStyleWidth: 8, font: { family: 'Inter', size: 12 }, color: '#94a3b8' },
       },
-      tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.9)',
-        padding: 12,
-        cornerRadius: 8,
-      },
+      tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.95)', padding: 12, cornerRadius: 8 },
     },
   }
 
-  // Chart: Completions over time (line) — transform from API array format
   const timelineArr = Array.isArray(timeline) ? timeline : []
   const timelineLabels = timelineArr.map((t) => {
     const [y, m] = t.month.split('-')
@@ -257,7 +216,7 @@ export default function Dashboard() {
         tension: 0.3,
         pointRadius: 4,
         pointHoverRadius: 6,
-        pointBackgroundColor: '#fff',
+        pointBackgroundColor: '#0f172a',
         pointBorderColor: COLORS.emerald,
         pointBorderWidth: 2,
       },
@@ -269,73 +228,31 @@ export default function Dashboard() {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'top',
-        align: 'end',
-        labels: {
-          padding: 16,
-          usePointStyle: true,
-          pointStyleWidth: 8,
-          font: { family: 'Inter', size: 12 },
-          color: '#64748b',
-        },
+        position: 'top', align: 'end',
+        labels: { padding: 16, usePointStyle: true, pointStyleWidth: 8, font: { family: 'Inter', size: 12 }, color: '#94a3b8' },
       },
-      tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.9)',
-        padding: 12,
-        cornerRadius: 8,
-        mode: 'index',
-        intersect: false,
-      },
+      tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.95)', padding: 12, cornerRadius: 8, mode: 'index', intersect: false },
     },
     scales: {
-      x: {
-        grid: { display: false },
-        ticks: { font: { family: 'Inter', size: 12 }, color: '#94a3b8' },
-      },
-      y: {
-        grid: { color: 'rgba(241, 245, 249, 1)' },
-        ticks: { font: { family: 'Inter', size: 12 }, color: '#94a3b8', stepSize: 1 },
-      },
+      x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 12 }, color: chartTick } },
+      y: { grid: { color: chartGrid }, ticks: { font: { family: 'Inter', size: 12 }, color: chartTick, stepSize: 1 } },
     },
-    interaction: {
-      mode: 'nearest',
-      axis: 'x',
-      intersect: false,
-    },
+    interaction: { mode: 'nearest', axis: 'x', intersect: false },
   }
 
   const improvements = topImprovements || getDemoTopImprovements()
 
   return (
     <div className="p-6 max-w-[1400px]">
-      {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Overview of continuous improvement performance
-        </p>
+        <h1 className="text-2xl font-bold text-slate-100">Dashboard</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Overview of continuous improvement performance</p>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-5 mb-8">
-        <SummaryCard
-          title="Total Initiatives"
-          value={summary?.total_initiatives || 0}
-          subtitle="across all stages"
-          icon={RocketLaunchIcon}
-        />
-        <SummaryCard
-          title="Completion Rate"
-          value={`${(summary?.completion_rate || 0).toFixed(1)}%`}
-          subtitle="initiatives sustained"
-          icon={CheckCircleIcon}
-        />
-        <SummaryCard
-          title="Active Improvements"
-          value={activeCount}
-          subtitle="plan + implement + verify"
-          icon={BoltIcon}
-        />
+        <SummaryCard title="Total Initiatives" value={summary?.total_initiatives || 0} subtitle="across all stages" icon={RocketLaunchIcon} />
+        <SummaryCard title="Completion Rate" value={`${(summary?.completion_rate || 0).toFixed(1)}%`} subtitle="initiatives sustained" icon={CheckCircleIcon} />
+        <SummaryCard title="Active Improvements" value={activeCount} subtitle="plan + implement + verify" icon={BoltIcon} />
         <SummaryCard
           title="Total Cost Saved"
           value={`$${((summary?.total_cost_savings || 0) / 1000).toFixed(1)}k`}
@@ -346,50 +263,39 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Charts Row 1 */}
       <div className="grid grid-cols-3 gap-5 mb-8">
-        <div className="col-span-2 bg-white rounded-xl border border-slate-200/80 p-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Initiatives by Status</h3>
+        <div className="col-span-2 bg-slate-900 rounded-xl border border-slate-800/80 p-6">
+          <h3 className="text-sm font-semibold text-slate-300 mb-4">Initiatives by Status</h3>
           <div className="h-64">
             <Bar data={statusChartData} options={statusChartOptions} />
           </div>
         </div>
-
-        <div className="bg-white rounded-xl border border-slate-200/80 p-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">By Category</h3>
+        <div className="bg-slate-900 rounded-xl border border-slate-800/80 p-6">
+          <h3 className="text-sm font-semibold text-slate-300 mb-4">By Category</h3>
           <div className="h-64">
             <Doughnut data={categoryChartData} options={doughnutOptions} />
           </div>
         </div>
       </div>
 
-      {/* Charts Row 2 */}
       <div className="grid grid-cols-2 gap-5 mb-8">
-        <div className="bg-white rounded-xl border border-slate-200/80 p-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Completions Over Time</h3>
+        <div className="bg-slate-900 rounded-xl border border-slate-800/80 p-6">
+          <h3 className="text-sm font-semibold text-slate-300 mb-4">Completions Over Time</h3>
           <div className="h-64">
             <Line data={timelineChartData} options={lineOptions} />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200/80 p-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Top Improvements</h3>
+        <div className="bg-slate-900 rounded-xl border border-slate-800/80 p-6">
+          <h3 className="text-sm font-semibold text-slate-300 mb-4">Top Improvements</h3>
           <div className="overflow-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider pb-3">
-                    Metric
-                  </th>
-                  <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider pb-3">
-                    Before
-                  </th>
-                  <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider pb-3">
-                    After
-                  </th>
-                  <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider pb-3">
-                    Improvement
-                  </th>
+                <tr className="border-b border-slate-700/50">
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider pb-3">Metric</th>
+                  <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider pb-3">Before</th>
+                  <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider pb-3">After</th>
+                  <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider pb-3">Improvement</th>
                 </tr>
               </thead>
               <tbody>
@@ -401,25 +307,20 @@ export default function Dashboard() {
                       : 0
                   const isPositive = pct > 0
                   return (
-                    <tr key={idx} className="border-b border-slate-50 last:border-0">
+                    <tr key={idx} className="border-b border-slate-800/50 last:border-0">
                       <td className="py-3">
-                        <p className="text-sm font-medium text-slate-700">{item.metric_name || item.name}</p>
-                        <p className="text-xs text-slate-400">{item.title || item.initiative}</p>
+                        <p className="text-sm font-medium text-slate-200">{item.metric_name || item.name}</p>
+                        <p className="text-xs text-slate-500">{item.title || item.initiative}</p>
                       </td>
-                      <td className="text-right text-sm text-slate-500 py-3">
+                      <td className="text-right text-sm text-slate-400 py-3">
                         {(item.before_value ?? item.before)?.toLocaleString()}{item.unit ? ` ${item.unit}` : ''}
                       </td>
-                      <td className="text-right text-sm font-medium text-slate-700 py-3">
+                      <td className="text-right text-sm font-medium text-slate-200 py-3">
                         {(item.after_value ?? item.after)?.toLocaleString()}{item.unit ? ` ${item.unit}` : ''}
                       </td>
                       <td className="text-right py-3">
-                        <span
-                          className={`inline-flex items-center text-sm font-bold ${
-                            isPositive ? 'text-emerald-600' : 'text-red-500'
-                          }`}
-                        >
-                          {isPositive ? '' : '+'}
-                          {Math.abs(pct).toFixed(1)}%
+                        <span className={`inline-flex items-center text-sm font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {isPositive ? '' : '+'}{Math.abs(pct).toFixed(1)}%
                         </span>
                       </td>
                     </tr>
@@ -436,10 +337,7 @@ export default function Dashboard() {
 
 function getDemoSummary() {
   return {
-    total_initiatives: 19,
-    completion_rate: 32,
-    total_cost_savings: 142500,
-    avg_improvement_pct: 68,
+    total_initiatives: 19, completion_rate: 32, total_cost_savings: 142500, avg_improvement_pct: 68,
     by_status: [
       { status: 'identify', count: 3 }, { status: 'analyze', count: 2 },
       { status: 'plan', count: 4 }, { status: 'implement', count: 5 },

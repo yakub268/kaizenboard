@@ -1,32 +1,32 @@
 const STATUS_STYLES = {
   identify: {
-    bg: 'bg-slate-100',
-    text: 'text-slate-700',
+    bg: 'bg-slate-800',
+    text: 'text-slate-300',
     dot: 'bg-slate-400',
   },
   analyze: {
-    bg: 'bg-blue-50',
-    text: 'text-blue-700',
+    bg: 'bg-blue-950/50',
+    text: 'text-blue-400',
     dot: 'bg-blue-400',
   },
   plan: {
-    bg: 'bg-violet-50',
-    text: 'text-violet-700',
+    bg: 'bg-violet-950/50',
+    text: 'text-violet-400',
     dot: 'bg-violet-400',
   },
   implement: {
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
+    bg: 'bg-amber-950/50',
+    text: 'text-amber-400',
     dot: 'bg-amber-400',
   },
   verify: {
-    bg: 'bg-cyan-50',
-    text: 'text-cyan-700',
+    bg: 'bg-cyan-950/50',
+    text: 'text-cyan-400',
     dot: 'bg-cyan-400',
   },
   sustain: {
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
+    bg: 'bg-emerald-950/50',
+    text: 'text-emerald-400',
     dot: 'bg-emerald-400',
   },
 }

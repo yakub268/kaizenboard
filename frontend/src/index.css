@@ -24,8 +24,8 @@ html {
 }
 
 body {
-  background-color: #f8fafc;
-  color: #1e293b;
+  background-color: #020617;
+  color: #e2e8f0;
   min-height: 100vh;
 }
 
@@ -40,12 +40,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #334155;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #475569;
 }
 
 /* Card transitions */
@@ -54,7 +54,7 @@ body {
 }
 
 .card-hover:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   transform: translateY(-1px);
 }
 
@@ -81,7 +81,7 @@ body {
 
 /* Modal backdrop */
 .modal-backdrop {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(2, 6, 23, 0.8);
   backdrop-filter: blur(4px);
 }
 
