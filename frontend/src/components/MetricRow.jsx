@@ -1,8 +1,9 @@
 import { TrashIcon } from '@heroicons/react/24/outline'
 
 export default function MetricRow({ metric, onDelete }) {
-  const before = parseFloat(metric.baseline_value) || 0
-  const after = parseFloat(metric.current_value) || 0
+  // Support both field naming conventions
+  const before = parseFloat(metric.before_value ?? metric.baseline_value) || 0
+  const after = parseFloat(metric.after_value ?? metric.current_value) || 0
   const target = parseFloat(metric.target_value) || after
 
   // Calculate improvement percentage
@@ -11,14 +12,13 @@ export default function MetricRow({ metric, onDelete }) {
     improvement = ((before - after) / Math.abs(before)) * 100
   }
 
-  // For metrics where higher is better (e.g., quality score), flip the sign
   const isPositive = improvement > 0
   const absImprovement = Math.abs(improvement)
 
-  // Progress toward target
+  // Progress bar width
   let progressPct = 0
-  if (target !== before && before !== 0) {
-    progressPct = Math.min(100, Math.max(0, ((before - after) / (before - target)) * 100))
+  if (before !== 0) {
+    progressPct = Math.min(100, Math.max(0, absImprovement))
   }
 
   return (
@@ -42,9 +42,9 @@ export default function MetricRow({ metric, onDelete }) {
         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full improvement-bar ${
-              isPositive ? 'bg-emerald-400' : 'bg-red-400'
+              isPositive ? 'bg-emerald-400' : after === 0 && before === 0 ? 'bg-slate-200' : 'bg-red-400'
             }`}
-            style={{ width: `${Math.min(absImprovement, 100)}%` }}
+            style={{ width: `${progressPct}%` }}
           />
         </div>
       </div>
@@ -52,25 +52,27 @@ export default function MetricRow({ metric, onDelete }) {
       {/* After value */}
       <div className="w-24 text-center">
         <p className="text-xs text-slate-400 mb-0.5">After</p>
-        <p className="text-sm font-semibold text-slate-800">{after.toLocaleString()}</p>
-      </div>
-
-      {/* Target value */}
-      <div className="w-24 text-center">
-        <p className="text-xs text-slate-400 mb-0.5">Target</p>
-        <p className="text-sm font-semibold text-slate-500">{target.toLocaleString()}</p>
+        <p className="text-sm font-semibold text-slate-800">
+          {metric.after_value != null || metric.current_value != null
+            ? after.toLocaleString()
+            : '—'}
+        </p>
       </div>
 
       {/* Improvement */}
       <div className="w-20 text-right">
-        <span
-          className={`inline-flex items-center text-sm font-bold ${
-            isPositive ? 'text-emerald-600' : improvement === 0 ? 'text-slate-400' : 'text-red-500'
-          }`}
-        >
-          {isPositive ? '-' : improvement === 0 ? '' : '+'}
-          {absImprovement.toFixed(1)}%
-        </span>
+        {(metric.after_value != null || metric.current_value != null) ? (
+          <span
+            className={`inline-flex items-center text-sm font-bold ${
+              isPositive ? 'text-emerald-600' : improvement === 0 ? 'text-slate-400' : 'text-red-500'
+            }`}
+          >
+            {isPositive ? '-' : improvement === 0 ? '' : '+'}
+            {absImprovement.toFixed(1)}%
+          </span>
+        ) : (
+          <span className="text-sm text-slate-300">—</span>
+        )}
       </div>
 
       {/* Delete button */}

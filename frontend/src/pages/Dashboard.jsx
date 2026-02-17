@@ -36,7 +36,6 @@ ChartJS.register(
   Filler
 )
 
-// Consistent color palette
 const COLORS = {
   slate: 'rgb(100, 116, 139)',
   blue: 'rgb(59, 130, 246)',
@@ -48,6 +47,16 @@ const COLORS = {
   green: 'rgb(34, 197, 94)',
   orange: 'rgb(249, 115, 22)',
   purple: 'rgb(168, 85, 247)',
+}
+
+// Convert array of {status/category, count} to lookup object
+function arrayToMap(arr, keyField) {
+  const map = {}
+  if (!arr) return map
+  for (const item of arr) {
+    map[item[keyField]] = item.count
+  }
+  return map
 }
 
 function SummaryCard({ title, value, subtitle, icon: Icon, trend, trendUp }) {
@@ -103,7 +112,6 @@ export default function Dashboard() {
         setTimeline(timelineData)
         setTopImprovements(topData)
       } catch {
-        // Use demo data
         setSummary(getDemoSummary())
         setTimeline(getDemoTimeline())
         setTopImprovements(getDemoTopImprovements())
@@ -122,22 +130,25 @@ export default function Dashboard() {
     )
   }
 
+  // Transform API data
+  const statusMap = arrayToMap(summary?.by_status, 'status')
+  const categoryMap = arrayToMap(summary?.by_category, 'category')
+  const activeCount = (statusMap.plan || 0) + (statusMap.implement || 0) + (statusMap.verify || 0)
+
   // Chart: Initiatives by status
   const statusChartData = {
     labels: ['Identify', 'Analyze', 'Plan', 'Implement', 'Verify', 'Sustain'],
     datasets: [
       {
         label: 'Initiatives',
-        data: summary?.by_status
-          ? [
-              summary.by_status.identify || 0,
-              summary.by_status.analyze || 0,
-              summary.by_status.plan || 0,
-              summary.by_status.implement || 0,
-              summary.by_status.verify || 0,
-              summary.by_status.sustain || 0,
-            ]
-          : [3, 2, 4, 5, 2, 3],
+        data: [
+          statusMap.identify || 0,
+          statusMap.analyze || 0,
+          statusMap.plan || 0,
+          statusMap.implement || 0,
+          statusMap.verify || 0,
+          statusMap.sustain || 0,
+        ],
         backgroundColor: [
           'rgba(100, 116, 139, 0.8)',
           'rgba(59, 130, 246, 0.8)',
@@ -179,18 +190,16 @@ export default function Dashboard() {
 
   // Chart: Initiatives by category (doughnut)
   const categoryChartData = {
-    labels: ['Waste', 'Cycle Time', 'Quality', 'Cost', 'Safety'],
+    labels: ['Waste Reduction', 'Cycle Time', 'Quality', 'Cost Savings', 'Safety'],
     datasets: [
       {
-        data: summary?.by_category
-          ? [
-              summary.by_category.waste || 0,
-              summary.by_category.cycle_time || 0,
-              summary.by_category.quality || 0,
-              summary.by_category.cost || 0,
-              summary.by_category.safety || 0,
-            ]
-          : [4, 5, 3, 4, 3],
+        data: [
+          categoryMap.waste_reduction || 0,
+          categoryMap.cycle_time || 0,
+          categoryMap.quality || 0,
+          categoryMap.cost_savings || 0,
+          categoryMap.safety || 0,
+        ],
         backgroundColor: [
           COLORS.red,
           COLORS.blue,
@@ -227,16 +236,21 @@ export default function Dashboard() {
     },
   }
 
-  // Chart: Completions over time (line)
-  const timelineLabels = timeline?.months || [
-    'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb',
-  ]
+  // Chart: Completions over time (line) — transform from API array format
+  const timelineArr = Array.isArray(timeline) ? timeline : []
+  const timelineLabels = timelineArr.map((t) => {
+    const [y, m] = t.month.split('-')
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return `${months[parseInt(m) - 1]} ${y.slice(2)}`
+  })
+  const timelineValues = timelineArr.map((t) => t.completed)
+
   const timelineChartData = {
-    labels: timelineLabels,
+    labels: timelineLabels.length > 0 ? timelineLabels : ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'],
     datasets: [
       {
         label: 'Completed',
-        data: timeline?.completed || [1, 2, 3, 2, 4, 3],
+        data: timelineValues.length > 0 ? timelineValues : [1, 2, 3, 2, 4, 3],
         borderColor: COLORS.emerald,
         backgroundColor: 'rgba(16, 185, 129, 0.1)',
         fill: true,
@@ -245,19 +259,6 @@ export default function Dashboard() {
         pointHoverRadius: 6,
         pointBackgroundColor: '#fff',
         pointBorderColor: COLORS.emerald,
-        pointBorderWidth: 2,
-      },
-      {
-        label: 'Started',
-        data: timeline?.started || [3, 4, 2, 5, 3, 2],
-        borderColor: COLORS.blue,
-        backgroundColor: 'rgba(59, 130, 246, 0.05)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        pointBackgroundColor: '#fff',
-        pointBorderColor: COLORS.blue,
         pointBorderWidth: 2,
       },
     ],
@@ -319,29 +320,27 @@ export default function Dashboard() {
       <div className="grid grid-cols-4 gap-5 mb-8">
         <SummaryCard
           title="Total Initiatives"
-          value={summary?.total || 19}
+          value={summary?.total_initiatives || 0}
           subtitle="across all stages"
           icon={RocketLaunchIcon}
         />
         <SummaryCard
           title="Completion Rate"
-          value={`${summary?.completion_rate || 32}%`}
-          subtitle="vs last month"
-          trend="+8%"
-          trendUp
+          value={`${(summary?.completion_rate || 0).toFixed(1)}%`}
+          subtitle="initiatives sustained"
           icon={CheckCircleIcon}
         />
         <SummaryCard
           title="Active Improvements"
-          value={summary?.active || 12}
-          subtitle="in progress"
+          value={activeCount}
+          subtitle="plan + implement + verify"
           icon={BoltIcon}
         />
         <SummaryCard
           title="Total Cost Saved"
-          value={`$${((summary?.total_cost_saved || 142500) / 1000).toFixed(0)}k`}
-          subtitle="this quarter"
-          trend="+23%"
+          value={`$${((summary?.total_cost_savings || 0) / 1000).toFixed(1)}k`}
+          subtitle="from completed metrics"
+          trend={summary?.avg_improvement_pct ? `${summary.avg_improvement_pct.toFixed(0)}% avg` : undefined}
           trendUp
           icon={CurrencyDollarIcon}
         />
@@ -349,7 +348,6 @@ export default function Dashboard() {
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-3 gap-5 mb-8">
-        {/* Bar: by status */}
         <div className="col-span-2 bg-white rounded-xl border border-slate-200/80 p-6">
           <h3 className="text-sm font-semibold text-slate-700 mb-4">Initiatives by Status</h3>
           <div className="h-64">
@@ -357,7 +355,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Doughnut: by category */}
         <div className="bg-white rounded-xl border border-slate-200/80 p-6">
           <h3 className="text-sm font-semibold text-slate-700 mb-4">By Category</h3>
           <div className="h-64">
@@ -368,7 +365,6 @@ export default function Dashboard() {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-2 gap-5 mb-8">
-        {/* Line: completions over time */}
         <div className="bg-white rounded-xl border border-slate-200/80 p-6">
           <h3 className="text-sm font-semibold text-slate-700 mb-4">Completions Over Time</h3>
           <div className="h-64">
@@ -376,7 +372,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Top Improvements Table */}
         <div className="bg-white rounded-xl border border-slate-200/80 p-6">
           <h3 className="text-sm font-semibold text-slate-700 mb-4">Top Improvements</h3>
           <div className="overflow-auto">
@@ -399,21 +394,23 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {improvements.map((item, idx) => {
-                  const pct = item.before !== 0
-                    ? (((item.before - item.after) / Math.abs(item.before)) * 100).toFixed(1)
-                    : 0
-                  const isPositive = parseFloat(pct) > 0
+                  const pct = item.improvement_pct !== undefined
+                    ? item.improvement_pct
+                    : item.before_value !== 0
+                      ? ((item.before_value - item.after_value) / Math.abs(item.before_value)) * 100
+                      : 0
+                  const isPositive = pct > 0
                   return (
                     <tr key={idx} className="border-b border-slate-50 last:border-0">
                       <td className="py-3">
-                        <p className="text-sm font-medium text-slate-700">{item.name}</p>
-                        <p className="text-xs text-slate-400">{item.initiative}</p>
+                        <p className="text-sm font-medium text-slate-700">{item.metric_name || item.name}</p>
+                        <p className="text-xs text-slate-400">{item.title || item.initiative}</p>
                       </td>
                       <td className="text-right text-sm text-slate-500 py-3">
-                        {item.before.toLocaleString()}{item.unit ? ` ${item.unit}` : ''}
+                        {(item.before_value ?? item.before)?.toLocaleString()}{item.unit ? ` ${item.unit}` : ''}
                       </td>
                       <td className="text-right text-sm font-medium text-slate-700 py-3">
-                        {item.after.toLocaleString()}{item.unit ? ` ${item.unit}` : ''}
+                        {(item.after_value ?? item.after)?.toLocaleString()}{item.unit ? ` ${item.unit}` : ''}
                       </td>
                       <td className="text-right py-3">
                         <span
@@ -421,8 +418,8 @@ export default function Dashboard() {
                             isPositive ? 'text-emerald-600' : 'text-red-500'
                           }`}
                         >
-                          {isPositive ? '-' : '+'}
-                          {Math.abs(pct)}%
+                          {isPositive ? '' : '+'}
+                          {Math.abs(pct).toFixed(1)}%
                         </span>
                       </td>
                     </tr>
@@ -439,29 +436,37 @@ export default function Dashboard() {
 
 function getDemoSummary() {
   return {
-    total: 19,
+    total_initiatives: 19,
     completion_rate: 32,
-    active: 12,
-    total_cost_saved: 142500,
-    by_status: { identify: 3, analyze: 2, plan: 4, implement: 5, verify: 2, sustain: 3 },
-    by_category: { waste: 4, cycle_time: 5, quality: 3, cost: 4, safety: 3 },
+    total_cost_savings: 142500,
+    avg_improvement_pct: 68,
+    by_status: [
+      { status: 'identify', count: 3 }, { status: 'analyze', count: 2 },
+      { status: 'plan', count: 4 }, { status: 'implement', count: 5 },
+      { status: 'verify', count: 2 }, { status: 'sustain', count: 3 },
+    ],
+    by_category: [
+      { category: 'waste_reduction', count: 4 }, { category: 'cycle_time', count: 5 },
+      { category: 'quality', count: 3 }, { category: 'cost_savings', count: 4 },
+      { category: 'safety', count: 3 },
+    ],
   }
 }
 
 function getDemoTimeline() {
-  return {
-    months: ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'],
-    completed: [1, 2, 3, 2, 4, 3],
-    started: [3, 4, 2, 5, 3, 2],
-  }
+  return [
+    { month: '2025-09', completed: 1 }, { month: '2025-10', completed: 2 },
+    { month: '2025-11', completed: 3 }, { month: '2025-12', completed: 2 },
+    { month: '2026-01', completed: 4 }, { month: '2026-02', completed: 3 },
+  ]
 }
 
 function getDemoTopImprovements() {
   return [
-    { name: 'Defect Rate', initiative: 'Soldering QC', before: 4.8, after: 1.2, unit: '%' },
-    { name: 'Changeover Time', initiative: 'SMED CNC Setup', before: 45, after: 12, unit: 'min' },
-    { name: 'Packaging Waste', initiative: 'Reusable Containers', before: 2400, after: 840, unit: 'kg/mo' },
-    { name: 'Cycle Time', initiative: 'Station 4 Layout', before: 180, after: 138, unit: 'sec' },
-    { name: 'Safety Incidents', initiative: 'Forklift Protocols', before: 8, after: 1, unit: '/quarter' },
+    { metric_name: 'Defect Rate', title: 'Soldering QC', before_value: 4.8, after_value: 1.2, unit: '%', improvement_pct: 75 },
+    { metric_name: 'Changeover Time', title: 'SMED CNC Setup', before_value: 45, after_value: 12, unit: 'min', improvement_pct: 73.3 },
+    { metric_name: 'Packaging Waste', title: 'Reusable Containers', before_value: 2400, after_value: 840, unit: 'kg/mo', improvement_pct: 65 },
+    { metric_name: 'Cycle Time', title: 'Station 4 Layout', before_value: 180, after_value: 138, unit: 'sec', improvement_pct: 23.3 },
+    { metric_name: 'Safety Incidents', title: 'Forklift Protocols', before_value: 8, after_value: 1, unit: '/quarter', improvement_pct: 87.5 },
   ]
 }

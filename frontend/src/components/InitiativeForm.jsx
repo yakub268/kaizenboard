@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 
 const CATEGORIES = [
-  { value: 'waste', label: 'Waste Reduction' },
+  { value: 'waste_reduction', label: 'Waste Reduction' },
   { value: 'cycle_time', label: 'Cycle Time' },
   { value: 'quality', label: 'Quality' },
-  { value: 'cost', label: 'Cost Reduction' },
+  { value: 'cost_savings', label: 'Cost Savings' },
   { value: 'safety', label: 'Safety' },
+  { value: 'other', label: 'Other' },
 ]
 
 const PRIORITIES = [
@@ -19,7 +20,7 @@ const PRIORITIES = [
 const emptyForm = {
   title: '',
   description: '',
-  category: 'waste',
+  category: 'waste_reduction',
   priority: 'medium',
   owner: '',
   department: '',

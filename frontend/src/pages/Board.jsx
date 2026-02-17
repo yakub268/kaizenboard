@@ -41,19 +41,21 @@ const STATUS_BG = {
 }
 
 const CATEGORY_COLORS = {
-  waste: 'bg-red-50 text-red-700 ring-red-200',
+  waste_reduction: 'bg-red-50 text-red-700 ring-red-200',
   cycle_time: 'bg-blue-50 text-blue-700 ring-blue-200',
   quality: 'bg-purple-50 text-purple-700 ring-purple-200',
-  cost: 'bg-green-50 text-green-700 ring-green-200',
+  cost_savings: 'bg-green-50 text-green-700 ring-green-200',
   safety: 'bg-orange-50 text-orange-700 ring-orange-200',
+  other: 'bg-slate-50 text-slate-700 ring-slate-200',
 }
 
 const CATEGORY_LABELS = {
-  waste: 'Waste',
+  waste_reduction: 'Waste',
   cycle_time: 'Cycle Time',
   quality: 'Quality',
-  cost: 'Cost',
+  cost_savings: 'Cost',
   safety: 'Safety',
+  other: 'Other',
 }
 
 const PRIORITY_INDICATORS = {
@@ -70,7 +72,7 @@ function daysSince(dateStr) {
 }
 
 function InitiativeCard({ initiative, onMove, onClick }) {
-  const categoryColor = CATEGORY_COLORS[initiative.category] || CATEGORY_COLORS.waste
+  const categoryColor = CATEGORY_COLORS[initiative.category] || CATEGORY_COLORS.other
   const categoryLabel = CATEGORY_LABELS[initiative.category] || initiative.category
   const priorityColor = PRIORITY_INDICATORS[initiative.priority] || PRIORITY_INDICATORS.medium
   const days = daysSince(initiative.created_at)
@@ -151,7 +153,6 @@ export default function Board() {
       setInitiatives(data)
     } catch (err) {
       setError(err.message)
-      // Use demo data when API is not available
       setInitiatives(getDemoData())
     } finally {
       setLoading(false)
@@ -175,7 +176,6 @@ export default function Board() {
       setShowForm(false)
       fetchInitiatives()
     } catch {
-      // If API unavailable, add to local state
       const newItem = {
         id: Date.now(),
         ...data,
@@ -193,7 +193,6 @@ export default function Board() {
       await updateStatus(id, newStatus)
       fetchInitiatives()
     } catch {
-      // Optimistic update
       setInitiatives((prev) =>
         prev.map((i) => (i.id === id ? { ...i, status: newStatus } : i))
       )
@@ -323,104 +322,14 @@ export default function Board() {
   )
 }
 
-// Demo data shown when API is unavailable
 function getDemoData() {
   return [
-    {
-      id: 1,
-      title: 'Reduce packaging waste by 30%',
-      description: 'Implement reusable packaging for internal parts movement between stations.',
-      category: 'waste',
-      priority: 'high',
-      status: 'implement',
-      owner: 'Sarah Chen',
-      department: 'Manufacturing',
-      created_at: '2026-01-15T00:00:00Z',
-      metrics: [{ id: 1 }, { id: 2 }],
-    },
-    {
-      id: 2,
-      title: 'Cut assembly cycle time 20%',
-      description: 'Reorganize Station 4 layout and pre-stage components.',
-      category: 'cycle_time',
-      priority: 'critical',
-      status: 'verify',
-      owner: 'Mike Torres',
-      department: 'Assembly',
-      created_at: '2026-01-20T00:00:00Z',
-      metrics: [{ id: 3 }],
-    },
-    {
-      id: 3,
-      title: 'Implement 5S in warehouse',
-      description: 'Sort, set in order, shine, standardize, sustain for warehouse area B.',
-      category: 'quality',
-      priority: 'medium',
-      status: 'plan',
-      owner: 'Lisa Park',
-      department: 'Warehouse',
-      created_at: '2026-02-01T00:00:00Z',
-      metrics: [],
-    },
-    {
-      id: 4,
-      title: 'Reduce defect rate in soldering',
-      description: 'Root cause analysis on solder joint failures in PCB assembly.',
-      category: 'quality',
-      priority: 'high',
-      status: 'analyze',
-      owner: 'James Wu',
-      department: 'Electronics',
-      created_at: '2026-02-05T00:00:00Z',
-      metrics: [{ id: 4 }],
-    },
-    {
-      id: 5,
-      title: 'Automate inventory counts',
-      description: 'Replace manual weekly counts with RFID scanning system.',
-      category: 'cost',
-      priority: 'medium',
-      status: 'identify',
-      owner: 'David Kim',
-      department: 'Logistics',
-      created_at: '2026-02-10T00:00:00Z',
-      metrics: [],
-    },
-    {
-      id: 6,
-      title: 'Improve forklift safety protocols',
-      description: 'Add proximity sensors and define new traffic patterns.',
-      category: 'safety',
-      priority: 'critical',
-      status: 'implement',
-      owner: 'Ana Rodriguez',
-      department: 'Safety',
-      created_at: '2026-01-08T00:00:00Z',
-      metrics: [{ id: 5 }, { id: 6 }, { id: 7 }],
-    },
-    {
-      id: 7,
-      title: 'Standardize changeover procedures',
-      description: 'Apply SMED methodology to CNC machine changeovers.',
-      category: 'cycle_time',
-      priority: 'high',
-      status: 'sustain',
-      owner: 'Tom Bradley',
-      department: 'Machining',
-      created_at: '2025-12-01T00:00:00Z',
-      metrics: [{ id: 8 }],
-    },
-    {
-      id: 8,
-      title: 'Reduce energy costs by 15%',
-      description: 'Install smart sensors on HVAC and lighting. Track kWh per unit produced.',
-      category: 'cost',
-      priority: 'medium',
-      status: 'plan',
-      owner: 'Rachel Adams',
-      department: 'Facilities',
-      created_at: '2026-02-12T00:00:00Z',
-      metrics: [],
-    },
+    { id: 1, title: 'Reduce packaging waste by 30%', category: 'waste_reduction', priority: 'high', status: 'implement', owner: 'Sarah Chen', created_at: '2026-01-15T00:00:00Z', metrics: [{ id: 1 }, { id: 2 }] },
+    { id: 2, title: 'Cut assembly cycle time 20%', category: 'cycle_time', priority: 'critical', status: 'verify', owner: 'Mike Torres', created_at: '2026-01-20T00:00:00Z', metrics: [{ id: 3 }] },
+    { id: 3, title: 'Implement 5S in warehouse', category: 'quality', priority: 'medium', status: 'plan', owner: 'Lisa Park', created_at: '2026-02-01T00:00:00Z', metrics: [] },
+    { id: 4, title: 'Reduce defect rate in soldering', category: 'quality', priority: 'high', status: 'analyze', owner: 'James Wu', created_at: '2026-02-05T00:00:00Z', metrics: [{ id: 4 }] },
+    { id: 5, title: 'Automate inventory counts', category: 'cost_savings', priority: 'medium', status: 'identify', owner: 'David Kim', created_at: '2026-02-10T00:00:00Z', metrics: [] },
+    { id: 6, title: 'Improve forklift safety protocols', category: 'safety', priority: 'critical', status: 'implement', owner: 'Ana Rodriguez', created_at: '2026-01-08T00:00:00Z', metrics: [{ id: 5 }, { id: 6 }] },
+    { id: 7, title: 'Standardize changeover procedures', category: 'cycle_time', priority: 'high', status: 'sustain', owner: 'Tom Bradley', created_at: '2025-12-01T00:00:00Z', metrics: [{ id: 8 }] },
   ]
 }

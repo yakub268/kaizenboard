@@ -34,19 +34,21 @@ const STATUS_LABELS = {
 }
 
 const CATEGORY_COLORS = {
-  waste: 'bg-red-50 text-red-700 ring-red-200',
+  waste_reduction: 'bg-red-50 text-red-700 ring-red-200',
   cycle_time: 'bg-blue-50 text-blue-700 ring-blue-200',
   quality: 'bg-purple-50 text-purple-700 ring-purple-200',
-  cost: 'bg-green-50 text-green-700 ring-green-200',
+  cost_savings: 'bg-green-50 text-green-700 ring-green-200',
   safety: 'bg-orange-50 text-orange-700 ring-orange-200',
+  other: 'bg-slate-50 text-slate-700 ring-slate-200',
 }
 
 const CATEGORY_LABELS = {
-  waste: 'Waste Reduction',
+  waste_reduction: 'Waste Reduction',
   cycle_time: 'Cycle Time',
   quality: 'Quality',
-  cost: 'Cost Reduction',
+  cost_savings: 'Cost Savings',
   safety: 'Safety',
+  other: 'Other',
 }
 
 const PRIORITY_STYLES = {
@@ -147,9 +149,9 @@ export default function InitiativeDetail() {
   const [metricForm, setMetricForm] = useState({
     name: '',
     unit: '',
-    baseline_value: '',
-    current_value: '',
-    target_value: '',
+    before_value: '',
+    after_value: '',
+    notes: '',
   })
 
   const fetchInitiative = useCallback(async () => {
@@ -203,9 +205,9 @@ export default function InitiativeDetail() {
     const data = {
       name: metricForm.name,
       unit: metricForm.unit,
-      baseline_value: parseFloat(metricForm.baseline_value) || 0,
-      current_value: parseFloat(metricForm.current_value) || 0,
-      target_value: parseFloat(metricForm.target_value) || 0,
+      before_value: parseFloat(metricForm.before_value) || 0,
+      after_value: metricForm.after_value ? parseFloat(metricForm.after_value) : null,
+      notes: metricForm.notes || null,
     }
     try {
       await addMetric(id, data)
@@ -217,7 +219,7 @@ export default function InitiativeDetail() {
         metrics: [...(prev.metrics || []), { id: Date.now(), ...data }],
       }))
     }
-    setMetricForm({ name: '', unit: '', baseline_value: '', current_value: '', target_value: '' })
+    setMetricForm({ name: '', unit: '', before_value: '', after_value: '', notes: '' })
     setShowMetricForm(false)
   }
 
@@ -276,7 +278,7 @@ export default function InitiativeDetail() {
     )
   }
 
-  const categoryColor = CATEGORY_COLORS[initiative.category] || CATEGORY_COLORS.waste
+  const categoryColor = CATEGORY_COLORS[initiative.category] || CATEGORY_COLORS.other
   const categoryLabel = CATEGORY_LABELS[initiative.category] || initiative.category
   const priorityStyle = PRIORITY_STYLES[initiative.priority] || PRIORITY_STYLES.medium
 
@@ -436,8 +438,8 @@ export default function InitiativeDetail() {
                 type="number"
                 step="any"
                 required
-                value={metricForm.baseline_value}
-                onChange={(e) => setMetricForm((f) => ({ ...f, baseline_value: e.target.value }))}
+                value={metricForm.before_value}
+                onChange={(e) => setMetricForm((f) => ({ ...f, before_value: e.target.value }))}
                 className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
               />
             </div>
@@ -446,19 +448,19 @@ export default function InitiativeDetail() {
               <input
                 type="number"
                 step="any"
-                required
-                value={metricForm.current_value}
-                onChange={(e) => setMetricForm((f) => ({ ...f, current_value: e.target.value }))}
+                value={metricForm.after_value}
+                onChange={(e) => setMetricForm((f) => ({ ...f, after_value: e.target.value }))}
+                placeholder="Optional"
                 className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Target</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Notes</label>
               <input
-                type="number"
-                step="any"
-                value={metricForm.target_value}
-                onChange={(e) => setMetricForm((f) => ({ ...f, target_value: e.target.value }))}
+                type="text"
+                value={metricForm.notes}
+                onChange={(e) => setMetricForm((f) => ({ ...f, notes: e.target.value }))}
+                placeholder="Optional"
                 className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
               />
             </div>
@@ -489,7 +491,6 @@ export default function InitiativeDetail() {
               <div className="w-24 text-center">Before</div>
               <div className="flex-1 px-4 text-center">Progress</div>
               <div className="w-24 text-center">After</div>
-              <div className="w-24 text-center">Target</div>
               <div className="w-20 text-right">Change</div>
               <div className="w-8" />
             </div>
@@ -582,7 +583,7 @@ function getDemoInitiative(id) {
     title: 'Reduce packaging waste by 30%',
     description:
       'Implement reusable packaging for internal parts movement between stations. Currently using single-use cardboard boxes that generate 2,400 kg of waste per month. Goal is to switch to returnable plastic totes with a tracking system.',
-    category: 'waste',
+    category: 'waste_reduction',
     priority: 'high',
     status: 'implement',
     owner: 'Sarah Chen',
@@ -594,25 +595,25 @@ function getDemoInitiative(id) {
         id: 1,
         name: 'Monthly Waste',
         unit: 'kg',
-        baseline_value: 2400,
-        current_value: 1200,
-        target_value: 720,
+        before_value: 2400,
+        after_value: 1200,
+        notes: 'Target: 720 kg',
       },
       {
         id: 2,
         name: 'Packaging Cost',
         unit: '$/month',
-        baseline_value: 8500,
-        current_value: 4200,
-        target_value: 2500,
+        before_value: 8500,
+        after_value: 4200,
+        notes: 'Target: $2,500',
       },
       {
         id: 3,
         name: 'Container Reuse Rate',
         unit: '%',
-        baseline_value: 0,
-        current_value: 65,
-        target_value: 90,
+        before_value: 0,
+        after_value: 65,
+        notes: 'Target: 90%',
       },
     ],
   }
