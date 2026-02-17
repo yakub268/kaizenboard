@@ -15,20 +15,20 @@ export default function Navbar() {
   const navigate = useNavigate()
 
   return (
-    <nav className="fixed left-0 top-0 bottom-0 w-16 hover:w-56 bg-slate-950 border-r border-slate-800/60 text-white flex flex-col z-50 transition-all duration-200 overflow-hidden group/nav">
+    <nav className="sticky top-0 h-screen w-56 flex-shrink-0 bg-slate-950 border-r border-slate-800/60 text-white flex flex-col">
       {/* Logo */}
-      <div className="px-4 py-5 border-b border-slate-800/60 flex items-center gap-3 min-w-0">
+      <div className="px-5 py-5 border-b border-slate-800/60 flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
           <ArrowTrendingUpIcon className="w-4.5 h-4.5 text-white" />
         </div>
-        <div className="opacity-0 group-hover/nav:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+        <div>
           <h1 className="text-sm font-semibold tracking-tight">KaizenBoard</h1>
           <p className="text-[10px] text-slate-500 tracking-wide uppercase">Continuous Improvement</p>
         </div>
       </div>
 
       {/* Navigation Links */}
-      <div className="flex-1 px-2 py-4">
+      <div className="flex-1 px-3 py-4">
         <ul className="space-y-1">
           {navItems.map(({ to, label, icon: Icon }) => (
             <li key={to}>
@@ -44,9 +44,7 @@ export default function Navbar() {
                 }
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
-                <span className="opacity-0 group-hover/nav:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                  {label}
-                </span>
+                {label}
               </NavLink>
             </li>
           ))}
@@ -54,7 +52,7 @@ export default function Navbar() {
       </div>
 
       {/* New Initiative Button */}
-      <div className="px-2 py-4 border-t border-slate-800/60">
+      <div className="px-3 py-4 border-t border-slate-800/60">
         <button
           onClick={() => {
             navigate('/')
@@ -63,9 +61,7 @@ export default function Navbar() {
           className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors duration-150 cursor-pointer"
         >
           <PlusIcon className="w-4 h-4 flex-shrink-0" />
-          <span className="opacity-0 group-hover/nav:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-            New Initiative
-          </span>
+          New Initiative
         </button>
       </div>
     </nav>

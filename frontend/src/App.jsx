@@ -8,7 +8,7 @@ function App() {
   return (
     <div className="flex min-h-screen bg-slate-950">
       <Navbar />
-      <main className="flex-1 ml-16">
+      <main className="flex-1 min-w-0 overflow-auto">
         <Routes>
           <Route path="/" element={<Board />} />
           <Route path="/dashboard" element={<Dashboard />} />
