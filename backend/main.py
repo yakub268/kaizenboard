@@ -1,0 +1,380 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from datetime import datetime, timezone, timedelta
+
+from database import engine, SessionLocal, Base
+from models import Initiative, Metric, Activity, CategoryEnum, StatusEnum, PriorityEnum
+import models  # registers all models with Base
+
+from routers import initiatives, metrics, dashboard
+
+app = FastAPI(
+    title="KaizenBoard API",
+    description="Lean/continuous improvement initiative tracker",
+    version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(initiatives.router)
+app.include_router(metrics.router)
+app.include_router(dashboard.router)
+
+
+def _utcnow(offset_days: int = 0) -> datetime:
+    return (datetime.now(timezone.utc) + timedelta(days=offset_days)).replace(tzinfo=None)
+
+
+SEED_DATA = [
+    # ── 1 ─────────────────────────────────────────────────────────────────────
+    {
+        "initiative": {
+            "title": "Reduce Order Processing Cycle Time",
+            "description": (
+                "Customer orders currently flow through 7 manual handoffs across 3 departments "
+                "before shipping confirmation. Mapping revealed 4 non-value-add steps totalling "
+                "~2.5 hours per order. Target: single-piece flow with automated WMS triggers."
+            ),
+            "category": CategoryEnum.cycle_time,
+            "status": StatusEnum.sustain,
+            "priority": PriorityEnum.critical,
+            "owner": "Maria Chen",
+            "department": "Fulfillment",
+            "target_date": _utcnow(-30),
+            "completed_date": _utcnow(-10),
+        },
+        "metrics": [
+            {
+                "name": "Average order processing time",
+                "unit": "hours",
+                "before_value": 4.5,
+                "after_value": 0.75,
+                "notes": "Measured over 200 orders pre and post implementation.",
+            },
+            {
+                "name": "Manual handoffs per order",
+                "unit": "count",
+                "before_value": 7.0,
+                "after_value": 2.0,
+                "notes": "Eliminated receiving → staging → pick staging → sort steps.",
+            },
+        ],
+        "activities": [
+            ("Maria Chen", "created", "Initiative opened after VSM workshop revealed 55-min avg wait at Sort."),
+            ("Maria Chen", "status_changed", "Status moved from 'identify' to 'analyze'."),
+            ("Maria Chen", "status_changed", "Status moved from 'analyze' to 'plan'."),
+            ("Maria Chen", "status_changed", "Status moved from 'plan' to 'implement'."),
+            ("Maria Chen", "status_changed", "Status moved from 'implement' to 'verify'. Metrics show 83% reduction."),
+            ("Maria Chen", "status_changed", "Status moved from 'verify' to 'sustain'. SOP updated, team trained."),
+        ],
+    },
+    # ── 2 ─────────────────────────────────────────────────────────────────────
+    {
+        "initiative": {
+            "title": "Eliminate Duplicate Data Entry in Receiving",
+            "description": (
+                "Receiving clerks manually re-key purchase order data into 3 separate systems "
+                "(ERP, WMS, spreadsheet log). Each entry takes ~8 min and introduces transcription "
+                "errors ~12% of the time. Goal: single scan-in with automated downstream sync."
+            ),
+            "category": CategoryEnum.waste_reduction,
+            "status": StatusEnum.verify,
+            "priority": PriorityEnum.high,
+            "owner": "Derek Osei",
+            "department": "Receiving",
+            "target_date": _utcnow(14),
+            "completed_date": None,
+        },
+        "metrics": [
+            {
+                "name": "Data entry time per PO line",
+                "unit": "minutes",
+                "before_value": 8.0,
+                "after_value": 1.2,
+                "notes": "Post-implementation sample of 150 PO lines.",
+            },
+            {
+                "name": "Transcription error rate",
+                "unit": "%",
+                "before_value": 12.0,
+                "after_value": 0.4,
+                "notes": "Errors flagged by nightly ERP/WMS reconciliation job.",
+            },
+            {
+                "name": "Annual labor cost — data entry",
+                "unit": "$",
+                "before_value": 34400.0,
+                "after_value": 5160.0,
+                "notes": "Estimated from avg clerk wage $21.50/hr × hours saved.",
+            },
+        ],
+        "activities": [
+            ("Derek Osei", "created", "Spaghetti diagram showed 3 separate workstations per receipt."),
+            ("Derek Osei", "status_changed", "Status moved from 'identify' to 'analyze'."),
+            ("Derek Osei", "status_changed", "Status moved from 'analyze' to 'plan'. Barcode middleware selected."),
+            ("Derek Osei", "status_changed", "Status moved from 'plan' to 'implement'."),
+            ("Derek Osei", "metric_added", "Baseline measurements locked before go-live."),
+            ("Derek Osei", "status_changed", "Status moved from 'implement' to 'verify'. 30-day pilot running."),
+        ],
+    },
+    # ── 3 ─────────────────────────────────────────────────────────────────────
+    {
+        "initiative": {
+            "title": "Reduce Defect Rate on Line 3 — Weld Station",
+            "description": (
+                "Line 3's weld station generates 18% first-pass yield failure — 3× the plant average. "
+                "Root cause analysis (5-Why + fishbone) traced to worn electrode tips (replaced only "
+                "on failure vs. scheduled) and operator variation in tip-dress frequency. "
+                "Countermeasures: PM schedule every 200 welds, poka-yoke counter, control chart posted."
+            ),
+            "category": CategoryEnum.quality,
+            "status": StatusEnum.sustain,
+            "priority": PriorityEnum.critical,
+            "owner": "Priya Nair",
+            "department": "Manufacturing — Line 3",
+            "target_date": _utcnow(-60),
+            "completed_date": _utcnow(-45),
+        },
+        "metrics": [
+            {
+                "name": "First-pass yield",
+                "unit": "%",
+                "before_value": 82.0,
+                "after_value": 97.1,
+                "notes": "Tracked via vision system, 30-day post-implementation window.",
+            },
+            {
+                "name": "Rework labor hours per 1,000 units",
+                "unit": "hours",
+                "before_value": 14.2,
+                "after_value": 1.8,
+                "notes": "Clocked by rework cell supervisor.",
+            },
+            {
+                "name": "Monthly scrap cost",
+                "unit": "$",
+                "before_value": 9800.0,
+                "after_value": 1230.0,
+                "notes": "Scrap tickets pulled from ERP. Annualised savings ~$103k.",
+            },
+        ],
+        "activities": [
+            ("Priya Nair", "created", "Quality audit flagged L3 weld rejection rate 3× plant avg."),
+            ("Priya Nair", "status_changed", "Status moved from 'identify' to 'analyze'. 5-Why completed."),
+            ("Priya Nair", "status_changed", "Status moved from 'analyze' to 'plan'. PM schedule drafted."),
+            ("Priya Nair", "status_changed", "Status moved from 'plan' to 'implement'. Counter installed."),
+            ("Priya Nair", "status_changed", "Status moved from 'implement' to 'verify'. 2-week pilot shows 94% FPY."),
+            ("Priya Nair", "status_changed", "Status moved from 'verify' to 'sustain'. Control chart showing stable."),
+        ],
+    },
+    # ── 4 ─────────────────────────────────────────────────────────────────────
+    {
+        "initiative": {
+            "title": "5S Warehouse Aisle Re-layout — Zone B",
+            "description": (
+                "Zone B pick paths average 340 m per pick cycle; top 20% SKUs by velocity are stored "
+                "at the far end of the zone (legacy placement). Re-slotting puts fast movers near "
+                "shipping dock. Also addresses cluttered overflow zones causing 2–3 near-misses/month."
+            ),
+            "category": CategoryEnum.safety,
+            "status": StatusEnum.implement,
+            "priority": PriorityEnum.high,
+            "owner": "James Whitford",
+            "department": "Warehouse",
+            "target_date": _utcnow(7),
+            "completed_date": None,
+        },
+        "metrics": [
+            {
+                "name": "Average travel distance per pick",
+                "unit": "meters",
+                "before_value": 340.0,
+                "after_value": None,
+                "notes": "Baseline measured with smart cart GPS over 5-day sample.",
+            },
+            {
+                "name": "Near-miss incidents per month",
+                "unit": "count",
+                "before_value": 2.7,
+                "after_value": None,
+                "notes": "12-month trailing avg from safety log.",
+            },
+        ],
+        "activities": [
+            ("James Whitford", "created", "Near-miss trend triggered safety kaizen event."),
+            ("James Whitford", "status_changed", "Status moved from 'identify' to 'analyze'. ABC analysis done."),
+            ("James Whitford", "status_changed", "Status moved from 'analyze' to 'plan'. New slot map approved."),
+            ("James Whitford", "status_changed", "Status moved from 'plan' to 'implement'. Physical move started."),
+        ],
+    },
+    # ── 5 ─────────────────────────────────────────────────────────────────────
+    {
+        "initiative": {
+            "title": "Standardise Machine Changeover — Press Cell 4",
+            "description": (
+                "SMED analysis on Press Cell 4 revealed 74 min average changeover, of which 51 min "
+                "are internal (machine stopped) but could be converted to external. Die staging cart, "
+                "shadow boards, and pre-kitted tooling sets are the primary countermeasures."
+            ),
+            "category": CategoryEnum.cycle_time,
+            "status": StatusEnum.plan,
+            "priority": PriorityEnum.medium,
+            "owner": "Luis Vargas",
+            "department": "Press Shop",
+            "target_date": _utcnow(45),
+            "completed_date": None,
+        },
+        "metrics": [
+            {
+                "name": "Average changeover time",
+                "unit": "minutes",
+                "before_value": 74.0,
+                "after_value": None,
+                "notes": "8-changeover video study baseline.",
+            },
+            {
+                "name": "Internal steps (machine-stopped)",
+                "unit": "count",
+                "before_value": 23.0,
+                "after_value": None,
+                "notes": "Steps identified in SMED worksheet.",
+            },
+        ],
+        "activities": [
+            ("Luis Vargas", "created", "SMED study triggered by capacity constraint on PC4."),
+            ("Luis Vargas", "status_changed", "Status moved from 'identify' to 'analyze'. Video analysis complete."),
+            ("Luis Vargas", "status_changed", "Status moved from 'analyze' to 'plan'. Tooling cart spec in review."),
+        ],
+    },
+    # ── 6 ─────────────────────────────────────────────────────────────────────
+    {
+        "initiative": {
+            "title": "Consolidate Supplier Invoicing to Weekly Batch",
+            "description": (
+                "AP currently processes 180–220 invoices daily on an ad-hoc basis. "
+                "Switching to a scheduled Tuesday batch with automated 3-way match reduces "
+                "processing cost, late-payment penalties, and AP clerk context-switching."
+            ),
+            "category": CategoryEnum.cost_savings,
+            "status": StatusEnum.analyze,
+            "priority": PriorityEnum.medium,
+            "owner": "Sandra Blake",
+            "department": "Accounts Payable",
+            "target_date": _utcnow(60),
+            "completed_date": None,
+        },
+        "metrics": [
+            {
+                "name": "Cost per invoice processed",
+                "unit": "$",
+                "before_value": 14.82,
+                "after_value": None,
+                "notes": "APQC benchmark avg is $6.10; target <$7.",
+            },
+            {
+                "name": "Late payment penalty — annual",
+                "unit": "$",
+                "before_value": 22600.0,
+                "after_value": None,
+                "notes": "Pulled from GL account 6410 last 12 months.",
+            },
+        ],
+        "activities": [
+            ("Sandra Blake", "created", "CFO flagged AP cost vs benchmark in Q3 review."),
+            ("Sandra Blake", "status_changed", "Status moved from 'identify' to 'analyze'. Process map in progress."),
+        ],
+    },
+    # ── 7 ─────────────────────────────────────────────────────────────────────
+    {
+        "initiative": {
+            "title": "Implement Visual Management Board — Production Floor",
+            "description": (
+                "Shift supervisors spend 15–20 min each shift collecting status from 4 cells manually. "
+                "Digital Andon boards with live OEE feed and a physical hour-by-hour board will "
+                "surface problems in real time, reducing escalation-to-response lag."
+            ),
+            "category": CategoryEnum.waste_reduction,
+            "status": StatusEnum.identify,
+            "priority": PriorityEnum.low,
+            "owner": "Tom Harada",
+            "department": "Production",
+            "target_date": _utcnow(90),
+            "completed_date": None,
+        },
+        "metrics": [
+            {
+                "name": "Supervisor time gathering status per shift",
+                "unit": "minutes",
+                "before_value": 17.5,
+                "after_value": None,
+                "notes": "Time study average over 10 shifts.",
+            },
+        ],
+        "activities": [
+            ("Tom Harada", "created", "Opportunity identified during Gemba walk with plant manager."),
+        ],
+    },
+]
+
+
+def seed_database(db: Session) -> None:
+    existing = db.query(Initiative).count()
+    if existing > 0:
+        return
+
+    for item in SEED_DATA:
+        i_data = item["initiative"]
+        initiative = Initiative(
+            **i_data,
+            created_at=_utcnow(-90),
+            updated_at=_utcnow(-1),
+        )
+        db.add(initiative)
+        db.flush()
+
+        for m_data in item.get("metrics", []):
+            metric = Metric(
+                initiative_id=initiative.id,
+                measured_at=_utcnow(-85),
+                **m_data,
+            )
+            db.add(metric)
+
+        for (user, action, details) in item.get("activities", []):
+            activity = Activity(
+                initiative_id=initiative.id,
+                user=user,
+                action=action,
+                details=details,
+                created_at=_utcnow(-80),
+            )
+            db.add(activity)
+
+    db.commit()
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_database(db)
+    finally:
+        db.close()
+
+
+@app.get("/api/health")
+def health_check() -> dict:
+    return {"status": "ok", "service": "KaizenBoard API"}
