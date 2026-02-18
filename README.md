@@ -37,6 +37,16 @@ npm run dev
 
 Open `http://localhost:5173`. The app seeds demo data (7 manufacturing/logistics initiatives) on first run.
 
+### Docker
+
+```bash
+docker compose up --build
+```
+
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
 ---
 
 ## What It Tracks
