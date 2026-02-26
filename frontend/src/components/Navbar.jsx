@@ -4,11 +4,15 @@ import {
   ChartBarIcon,
   PlusIcon,
   ArrowTrendingUpIcon,
+  SparklesIcon,
+  BriefcaseIcon,
 } from '@heroicons/react/24/outline'
 
 const navItems = [
   { to: '/', label: 'Board', icon: ViewColumnsIcon },
   { to: '/dashboard', label: 'Dashboard', icon: ChartBarIcon },
+  { to: '/work', label: 'Work Projects', icon: BriefcaseIcon },
+  { to: '/claude', label: 'Claude Projects', icon: SparklesIcon },
 ]
 
 export default function Navbar() {

@@ -405,20 +405,23 @@ export default function InitiativeDetail() {
       <div className="bg-slate-900 rounded-xl border border-slate-800/80 p-6">
         <h2 className="text-sm font-semibold text-slate-300 mb-4">Activity</h2>
         <div className="space-y-4">
-          {getActivityItems(initiative).map((item, idx) => (
-            <div key={idx} className="flex gap-3">
-              <div className="flex flex-col items-center">
-                <div className={`w-2 h-2 rounded-full mt-2 ${idx === 0 ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                {idx < getActivityItems(initiative).length - 1 && (
-                  <div className="w-px flex-1 bg-slate-800 mt-1" />
-                )}
+          {(() => {
+            const items = getActivityItems(initiative)
+            return items.map((item, idx) => (
+              <div key={idx} className="flex gap-3">
+                <div className="flex flex-col items-center">
+                  <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${idx === 0 ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                  {idx < items.length - 1 && (
+                    <div className="w-px flex-1 bg-slate-800 mt-1" />
+                  )}
+                </div>
+                <div className="pb-4">
+                  <p className="text-sm text-slate-300">{item.text}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{item.date}</p>
+                </div>
               </div>
-              <div className="pb-4">
-                <p className="text-sm text-slate-300">{item.text}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{item.date}</p>
-              </div>
-            </div>
-          ))}
+            ))
+          })()}
         </div>
       </div>
     </div>
@@ -426,34 +429,34 @@ export default function InitiativeDetail() {
 }
 
 function getActivityItems(initiative) {
-  const items = []
+  // Use real activity log from backend if available
+  if (initiative.activities && initiative.activities.length > 0) {
+    return [...initiative.activities]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .map((a) => ({
+        text: a.details || `${a.user}: ${a.action}`,
+        date: new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      }))
+  }
 
+  // Fallback for demo mode
+  const items = []
   items.push({
     text: `Status: ${STATUS_LABELS[initiative.status] || initiative.status}`,
     date: 'Current',
   })
-
   if (initiative.metrics?.length > 0) {
     items.push({
       text: `${initiative.metrics.length} metric${initiative.metrics.length > 1 ? 's' : ''} tracked`,
       date: 'Metrics',
     })
   }
-
   if (initiative.created_at) {
     items.push({
       text: `Initiative created${initiative.owner ? ` by ${initiative.owner}` : ''}`,
       date: new Date(initiative.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     })
   }
-
-  if (initiative.target_date) {
-    items.push({
-      text: 'Target completion date set',
-      date: new Date(initiative.target_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    })
-  }
-
   return items
 }
 

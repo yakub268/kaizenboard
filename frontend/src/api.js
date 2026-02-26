@@ -93,3 +93,60 @@ export function getDashboardTimeline() {
 export function getTopImprovements() {
   return request('/dashboard/top-improvements');
 }
+
+// Claude Projects
+export function getClaudeProjects() {
+  return request('/claude/projects');
+}
+
+export async function getClaudeSessions() {
+  const data = await request('/claude/sessions');
+  const hour = data.most_active_hour;
+  const mostActiveHour = hour != null
+    ? `${hour % 12 || 12} ${hour >= 12 ? 'PM' : 'AM'}`
+    : null;
+  return {
+    totalSessions: data.total_sessions,
+    totalMessages: data.total_messages,
+    streakDays: data.streak_days,
+    mostActiveHour,
+    days: data.daily_activity,
+  };
+}
+
+export function getClaudeBacklog() {
+  return request('/claude/backlog');
+}
+
+export function syncClaudeProjects() {
+  return request('/claude/sync', { method: 'POST' });
+}
+
+// Work Projects
+export function getWorkProjects() {
+  return request('/work/projects');
+}
+export function createTodo(initiativeId, data) {
+  return request(`/work/${initiativeId}/todos`, { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateTodo(todoId, data) {
+  return request(`/work/todos/${todoId}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function toggleTodo(todoId) {
+  return request(`/work/todos/${todoId}/toggle`, { method: 'PATCH' });
+}
+export function deleteTodo(todoId) {
+  return request(`/work/todos/${todoId}`, { method: 'DELETE' });
+}
+export function startTimer(initiativeId, notes) {
+  return request('/work/time/start', { method: 'POST', body: JSON.stringify({ initiative_id: initiativeId, notes }) });
+}
+export function stopTimer(notes) {
+  return request('/work/time/stop', { method: 'POST', body: JSON.stringify({ notes: notes || null }) });
+}
+export function getActiveTimer() {
+  return request('/work/time/active');
+}
+export function getTimeSummary(initiativeId) {
+  return request(`/work/time/${initiativeId}/summary`);
+}

@@ -144,7 +144,7 @@ export default function Board() {
     try {
       setError(null)
       const data = await getInitiatives(null, categoryFilter || null)
-      setInitiatives(data)
+      setInitiatives(data.filter(i => i.category !== 'work_project' && i.category !== 'ai_project'))
     } catch (err) {
       setError(err.message)
       setInitiatives(getDemoData())

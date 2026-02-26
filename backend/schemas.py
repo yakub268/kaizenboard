@@ -143,3 +143,117 @@ class TopImprovement(BaseModel):
     unit: Optional[str]
     before_value: float
     after_value: float
+
+
+# ── Claude Projects ────────────────────────────────────────────────────────────
+
+class ClaudeProject(BaseModel):
+    name: str
+    status: str                  # active | deferred | complete
+    phase: Optional[str]
+    last_updated: Optional[str]
+    notes: List[str]
+    section_header: str
+
+
+class DailyActivity(BaseModel):
+    date: str
+    messageCount: int
+    sessionCount: int
+    toolCallCount: int
+
+
+class SessionStats(BaseModel):
+    total_sessions: int
+    total_messages: int
+    daily_activity: List[DailyActivity]
+    most_active_hour: Optional[int]
+    streak_days: int
+
+
+class BacklogItem(BaseModel):
+    text: str
+    reason: Optional[str]
+
+
+class SyncResult(BaseModel):
+    created: int
+    updated: int
+    projects: List[str]
+
+
+# ── Todo ──────────────────────────────────────────────────────────────────────
+
+class TodoCreate(BaseModel):
+    text: str = Field(..., min_length=1, max_length=500)
+    order_index: int = 0
+
+
+class TodoUpdate(BaseModel):
+    text: Optional[str] = Field(None, min_length=1, max_length=500)
+    completed: Optional[bool] = None
+    order_index: Optional[int] = None
+
+
+class TodoResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    initiative_id: int
+    text: str
+    completed: bool
+    order_index: int
+    created_at: datetime
+    completed_at: Optional[datetime]
+
+
+# ── Time Tracking ─────────────────────────────────────────────────────────────
+
+class TimeEntryStart(BaseModel):
+    initiative_id: int
+    notes: Optional[str] = None
+
+
+class TimeEntryStop(BaseModel):
+    notes: Optional[str] = None
+
+
+class TimeEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    initiative_id: int
+    start_time: datetime
+    end_time: Optional[datetime]
+    duration_seconds: Optional[int]
+    notes: Optional[str]
+
+
+class TimeEntrySummary(BaseModel):
+    initiative_id: int
+    total_seconds: int
+    session_count: int
+    last_session: Optional[datetime]
+
+
+class ActiveTimer(BaseModel):
+    initiative_id: int
+    initiative_title: str
+    start_time: datetime
+    elapsed_seconds: int
+
+
+# ── Work Projects ─────────────────────────────────────────────────────────────
+
+class WorkProjectResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: Optional[str]
+    status: StatusEnum
+    priority: PriorityEnum
+    created_at: datetime
+    updated_at: datetime
+    todos: List[TodoResponse] = []
+    time_summary: Optional[TimeEntrySummary] = None

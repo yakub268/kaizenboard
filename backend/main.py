@@ -4,10 +4,10 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
 
 from database import engine, SessionLocal, Base
-from models import Initiative, Metric, Activity, CategoryEnum, StatusEnum, PriorityEnum
+from models import Initiative, Metric, Activity, Todo, CategoryEnum, StatusEnum, PriorityEnum
 import models  # registers all models with Base
 
-from routers import initiatives, metrics, dashboard
+from routers import initiatives, metrics, dashboard, claude_projects, work_projects
 
 app = FastAPI(
     title="KaizenBoard API",
@@ -31,6 +31,8 @@ app.add_middleware(
 app.include_router(initiatives.router)
 app.include_router(metrics.router)
 app.include_router(dashboard.router)
+app.include_router(claude_projects.router)
+app.include_router(work_projects.router)
 
 
 def _utcnow(offset_days: int = 0) -> datetime:
@@ -329,38 +331,146 @@ SEED_DATA = [
 ]
 
 
+WORK_PROJECT_SEED = [
+    {
+        "title": "DDV5 Warehouse Management System",
+        "description": (
+            "Core employee & dwelling time tracker for DDV5 fulfillment center. "
+            "400+ employees, clusters A/K/M, 330 aisles. Node.js + SQLite."
+        ),
+        "status": StatusEnum.implement,
+        "priority": PriorityEnum.high,
+        "todos": [
+            "Review archive at Desktop\\DDV5 Complete Archive",
+            "Consolidate into single active codebase",
+            "Test START_WAREHOUSE.bat startup",
+            "Verify 400+ employee records load correctly",
+            "Document final deployment path",
+        ],
+    },
+    {
+        "title": "DDV5 Professional (v2)",
+        "description": (
+            "Advanced version with Docker, REST API backend, React frontend. "
+            "Successor to the warehouse app."
+        ),
+        "status": StatusEnum.plan,
+        "priority": PriorityEnum.high,
+        "todos": [
+            "Audit differences vs base warehouse system",
+            "Decide: merge into one or keep separate",
+            "Set up Docker compose local run",
+            "Define what 'done' looks like for this version",
+        ],
+    },
+    {
+        "title": "SSD Dispatch Tracker",
+        "description": (
+            "Real-time dispatch operations system. PyQt5 desktop app, SQLite, badge photos, "
+            "120+ drivers, 13k+ daily packages. Live on GitHub."
+        ),
+        "status": StatusEnum.sustain,
+        "priority": PriorityEnum.medium,
+        "todos": [
+            "Tag v1.0 release on GitHub",
+            "Write deployment README for other sites",
+            "Add CSV bulk import validation",
+        ],
+    },
+    {
+        "title": "DDV5 Labor Board",
+        "description": (
+            "HTML-based labor visualization dashboard. Single-file at "
+            "Desktop\\DDV5 Complete Archive\\Desktop_ddv5-labor-board-complete.html"
+        ),
+        "status": StatusEnum.verify,
+        "priority": PriorityEnum.medium,
+        "todos": [
+            "Open and test ddv5-labor-board-complete.html",
+            "Decide: keep standalone or integrate into Pro",
+            "Screenshot for documentation",
+        ],
+    },
+    {
+        "title": "Amazon AI / Cedric Integration",
+        "description": (
+            "Internal Amazon AI assistant (Cedric). Exploring integration of warehouse workflows "
+            "with Cedric for summarization and process improvement."
+        ),
+        "status": StatusEnum.identify,
+        "priority": PriorityEnum.low,
+        "todos": [
+            "List 3 specific workflows to test with Cedric",
+            "Draft prompts for dwelling time analysis",
+            "Check data classification requirements for warehouse data",
+        ],
+    },
+]
+
+
 def seed_database(db: Session) -> None:
-    existing = db.query(Initiative).count()
+    existing = db.query(Initiative).filter(
+        Initiative.category != CategoryEnum.work_project
+    ).count()
+    if existing == 0:
+        for item in SEED_DATA:
+            i_data = item["initiative"]
+            initiative = Initiative(
+                **i_data,
+                created_at=_utcnow(-90),
+                updated_at=_utcnow(-1),
+            )
+            db.add(initiative)
+            db.flush()
+
+            for m_data in item.get("metrics", []):
+                metric = Metric(
+                    initiative_id=initiative.id,
+                    measured_at=_utcnow(-85),
+                    **m_data,
+                )
+                db.add(metric)
+
+            for (user, action, details) in item.get("activities", []):
+                activity = Activity(
+                    initiative_id=initiative.id,
+                    user=user,
+                    action=action,
+                    details=details,
+                    created_at=_utcnow(-80),
+                )
+                db.add(activity)
+
+        db.commit()
+
+
+def seed_work_projects(db: Session) -> None:
+    existing = db.query(Initiative).filter(
+        Initiative.category == CategoryEnum.work_project
+    ).count()
     if existing > 0:
         return
 
-    for item in SEED_DATA:
-        i_data = item["initiative"]
+    now = _utcnow()
+    for item in WORK_PROJECT_SEED:
+        todo_texts = item.pop("todos")
         initiative = Initiative(
-            **i_data,
-            created_at=_utcnow(-90),
-            updated_at=_utcnow(-1),
+            **item,
+            category=CategoryEnum.work_project,
+            created_at=now,
+            updated_at=now,
         )
         db.add(initiative)
         db.flush()
 
-        for m_data in item.get("metrics", []):
-            metric = Metric(
+        for idx, text in enumerate(todo_texts):
+            todo = Todo(
                 initiative_id=initiative.id,
-                measured_at=_utcnow(-85),
-                **m_data,
+                text=text,
+                order_index=idx,
+                created_at=now,
             )
-            db.add(metric)
-
-        for (user, action, details) in item.get("activities", []):
-            activity = Activity(
-                initiative_id=initiative.id,
-                user=user,
-                action=action,
-                details=details,
-                created_at=_utcnow(-80),
-            )
-            db.add(activity)
+            db.add(todo)
 
     db.commit()
 
@@ -371,6 +481,7 @@ def startup_event() -> None:
     db = SessionLocal()
     try:
         seed_database(db)
+        seed_work_projects(db)
     finally:
         db.close()
 

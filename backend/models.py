@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, Text, DateTime, ForeignKey, Enum as SAEnum
+    Column, Integer, String, Float, Text, DateTime, ForeignKey, Enum as SAEnum, Boolean
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -14,6 +14,8 @@ class CategoryEnum(str, enum.Enum):
     quality = "quality"
     cost_savings = "cost_savings"
     safety = "safety"
+    ai_project = "ai_project"
+    work_project = "work_project"
     other = "other"
 
 
@@ -71,6 +73,15 @@ class Initiative(Base):
     activities = relationship(
         "Activity", back_populates="initiative", cascade="all, delete-orphan"
     )
+    todos = relationship(
+        "Todo",
+        back_populates="initiative",
+        cascade="all, delete-orphan",
+        order_by="Todo.order_index",
+    )
+    time_entries = relationship(
+        "TimeEntry", back_populates="initiative", cascade="all, delete-orphan"
+    )
 
 
 class Metric(Base):
@@ -103,3 +114,34 @@ class Activity(Base):
     created_at = Column(DateTime, nullable=False, default=utcnow)
 
     initiative = relationship("Initiative", back_populates="activities")
+
+
+class Todo(Base):
+    __tablename__ = "todos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    initiative_id = Column(
+        Integer, ForeignKey("initiatives.id", ondelete="CASCADE"), nullable=False
+    )
+    text = Column(String(500), nullable=False)
+    completed = Column(Boolean, default=False)
+    order_index = Column(Integer, default=0)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+    initiative = relationship("Initiative", back_populates="todos")
+
+
+class TimeEntry(Base):
+    __tablename__ = "time_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    initiative_id = Column(
+        Integer, ForeignKey("initiatives.id", ondelete="CASCADE"), nullable=False
+    )
+    start_time = Column(DateTime, nullable=False, default=utcnow)
+    end_time = Column(DateTime, nullable=True)
+    duration_seconds = Column(Integer, nullable=True)  # filled on stop
+    notes = Column(String(500), nullable=True)
+
+    initiative = relationship("Initiative", back_populates="time_entries")

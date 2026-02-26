@@ -3,6 +3,8 @@ import Navbar from './components/Navbar'
 import Board from './pages/Board'
 import Dashboard from './pages/Dashboard'
 import InitiativeDetail from './pages/InitiativeDetail'
+import ClaudeProjects from './pages/ClaudeProjects'
+import WorkProjects from './pages/WorkProjects'
 
 function App() {
   return (
@@ -13,6 +15,8 @@ function App() {
           <Route path="/" element={<Board />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/initiative/:id" element={<InitiativeDetail />} />
+          <Route path="/claude" element={<ClaudeProjects />} />
+          <Route path="/work" element={<WorkProjects />} />
         </Routes>
       </main>
     </div>
