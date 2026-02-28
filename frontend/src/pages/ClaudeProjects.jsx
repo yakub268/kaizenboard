@@ -252,14 +252,6 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
         <p className="text-xs text-slate-400 leading-relaxed">{project.phase}</p>
       )}
 
-      {/* Meta row */}
-      {project.lastUpdated && (
-        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-          <CalendarDaysIcon className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Updated {formatDate(project.lastUpdated)}</span>
-        </div>
-      )}
-
       {/* Notes list */}
       {notes.length > 0 && (
         <ul className="space-y-1.5">
@@ -324,6 +316,19 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
             className="flex-1 bg-transparent text-xs text-slate-300 placeholder-slate-600 outline-none"
           />
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-1 border-t border-slate-800/40">
+        {project.lastUpdated && (
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+            <CalendarDaysIcon className="w-3 h-3" />
+            <span>Updated {formatDate(project.lastUpdated)}</span>
+          </div>
+        )}
+        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-slate-800 text-slate-500 rounded-md ring-1 ring-inset ring-slate-700/50 ml-auto">
+          Claude AI
+        </span>
       </div>
 
       {projectPath && (
