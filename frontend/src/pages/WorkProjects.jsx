@@ -21,6 +21,7 @@ import {
   startTimer,
   stopTimer,
   getActiveTimer,
+  getWorkStats,
 } from '../api'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -48,6 +49,34 @@ function formatDate(dateStr) {
   const d = new Date(dateStr)
   if (isNaN(d)) return dateStr
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// ─── Time bar chart ────────────────────────────────────────────────────────────
+
+function TimeChart({ days }) {
+  if (!days || days.length === 0) return null
+  const max = Math.max(...days.map((d) => d.seconds || 0), 1)
+  const barWidth = 8
+  const barGap = 3
+  const chartHeight = 48
+  const totalWidth = days.length * (barWidth + barGap) - barGap
+
+  return (
+    <svg width={totalWidth} height={chartHeight} className="overflow-visible" aria-label="30-day time activity">
+      {days.map((day, i) => {
+        const secs = day.seconds || 0
+        const barH = secs === 0 ? 2 : Math.max(4, Math.round((secs / max) * chartHeight))
+        const x = i * (barWidth + barGap)
+        const y = chartHeight - barH
+        return (
+          <rect key={i} x={x} y={y} width={barWidth} height={barH} rx="2"
+            fill={secs > 0 ? '#f97316' : '#1e293b'} opacity={secs > 0 ? 0.85 : 1}>
+            <title>{day.date}: {Math.round(secs / 60)}m</title>
+          </rect>
+        )
+      })}
+    </svg>
+  )
 }
 
 // ─── Demo data ─────────────────────────────────────────────────────────────────
@@ -432,6 +461,7 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
 export default function WorkProjects() {
   const [projects, setProjects] = useState([])
   const [activeTimer, setActiveTimer] = useState(null)
+  const [workStats, setWorkStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
 
@@ -442,15 +472,18 @@ export default function WorkProjects() {
   // Initial load
   const fetchAll = useCallback(async () => {
     try {
-      const [projectData, timerData] = await Promise.all([
+      const [projectData, timerData, statsData] = await Promise.all([
         getWorkProjects(),
         getActiveTimer().catch(() => null),
+        getWorkStats().catch(() => null),
       ])
       setProjects(projectData)
       setActiveTimer(timerData)
+      setWorkStats(statsData)
     } catch {
       setProjects(getDemoProjects())
       setActiveTimer(null)
+      setWorkStats(null)
     } finally {
       setLoading(false)
     }
@@ -684,7 +717,7 @@ export default function WorkProjects() {
           </span>
         </h2>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {sorted.map((project) => (
             <ProjectCard
               key={project.id}
@@ -703,40 +736,40 @@ export default function WorkProjects() {
       {/* ── Time Stats ─────────────────────────────────────────────── */}
       <section className="mt-10 mb-10">
         <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">
-          Time Summary
+          Time Activity
         </h2>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-slate-900 rounded-xl border border-slate-800/80 px-5 py-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-              <ClockIcon className="w-5 h-5 text-slate-400" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-5">
+          {[
+            { label: 'Total Logged', value: formatTotalTime(totalLogged) || '0m', icon: ClockIcon },
+            { label: 'Sessions', value: totalSessions, icon: SparklesIcon },
+            { label: 'Completion', value: todoTotal > 0 ? `${Math.round((completedTotal / todoTotal) * 100)}%` : '—', icon: BriefcaseIcon },
+            { label: 'Most Active', value: mostWorked && (mostWorked.time_summary?.total_seconds || mostWorked.totalMinutes) ? mostWorked.title.split(' ')[0] : '—', icon: CalendarDaysIcon },
+          ].map(({ label, value, icon: Icon }) => (
+            <div key={label} className="bg-slate-900 rounded-xl border border-slate-800/80 px-5 py-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+                <Icon className="w-5 h-5 text-slate-400" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 font-medium">{label}</p>
+                <p className="text-xl font-bold text-slate-100 mt-0.5 truncate max-w-[100px]">{value}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-slate-500 font-medium">Total Logged</p>
-              <p className="text-xl font-bold text-slate-100 mt-0.5">{formatTotalTime(totalLogged) || '0m'}</p>
-            </div>
+          ))}
+        </div>
+        <div className="bg-slate-900 rounded-xl border border-slate-800/80 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-slate-300">Time Logged — Last 30 Days</h3>
+            <span className="text-xs text-slate-500">Each bar = one day</span>
           </div>
-          <div className="bg-slate-900 rounded-xl border border-slate-800/80 px-5 py-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-              <SparklesIcon className="w-5 h-5 text-slate-400" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 font-medium">Sessions</p>
-              <p className="text-xl font-bold text-slate-100 mt-0.5">{totalSessions}</p>
-            </div>
+          <div className="overflow-x-auto pb-1">
+            <TimeChart days={workStats?.daily_activity || []} />
           </div>
-          <div className="bg-slate-900 rounded-xl border border-slate-800/80 px-5 py-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-              <BriefcaseIcon className="w-5 h-5 text-slate-400" />
+          {workStats?.daily_activity?.length > 0 && (
+            <div className="flex justify-between mt-2">
+              <span className="text-[10px] text-slate-600">{workStats.daily_activity[0]?.date}</span>
+              <span className="text-[10px] text-slate-600">{workStats.daily_activity[workStats.daily_activity.length - 1]?.date}</span>
             </div>
-            <div>
-              <p className="text-xs text-slate-500 font-medium">Most Worked</p>
-              <p className="text-sm font-bold text-slate-100 mt-0.5 truncate max-w-[140px]">
-                {mostWorked && (mostWorked.time_summary?.total_seconds || mostWorked.totalMinutes)
-                  ? mostWorked.title
-                  : '—'}
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -759,12 +792,12 @@ export default function WorkProjects() {
                   <p className="text-sm text-slate-300 leading-relaxed">{p.title}</p>
                   {p.phase && <p className="text-xs text-slate-500 mt-0.5">{p.phase}</p>}
                 </div>
-                <span className={`flex-shrink-0 px-2 py-0.5 text-[10px] font-semibold uppercase rounded-full ${
-                  p.priority === 'critical' ? 'bg-red-950/60 text-red-400' :
-                  p.priority === 'high' ? 'bg-orange-950/60 text-orange-400' :
-                  p.priority === 'medium' ? 'bg-amber-950/60 text-amber-400' :
-                  'bg-slate-800 text-slate-500'
-                }`}>{p.priority}</span>
+                <button
+                  className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-orange-400 bg-orange-950/40 hover:bg-orange-900/50 border border-orange-900/60 rounded-lg transition-colors duration-150 cursor-pointer"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-new-initiative'))}
+                >
+                  Start
+                </button>
               </div>
             ))}
           </div>

@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
+from collections import defaultdict
 
 from database import get_db
 from models import Initiative, Todo, TimeEntry, CategoryEnum
@@ -260,3 +261,29 @@ def list_work_projects(
         results.append(project)
 
     return results
+
+
+@router.get("/stats")
+def get_work_stats(db: Session = Depends(get_db)) -> dict:
+    entries = db.query(TimeEntry).filter(TimeEntry.duration_seconds.isnot(None)).all()
+
+    daily: dict[str, int] = defaultdict(int)
+    for e in entries:
+        day = e.start_time.date().isoformat()
+        daily[day] += e.duration_seconds or 0
+
+    today = date.today()
+    daily_activity = [
+        {"date": (today - timedelta(days=29 - i)).isoformat(),
+         "seconds": daily.get((today - timedelta(days=29 - i)).isoformat(), 0)}
+        for i in range(30)
+    ]
+
+    total_seconds = sum(e.duration_seconds for e in entries if e.duration_seconds)
+    session_count = len(entries)
+
+    return {
+        "total_seconds": total_seconds,
+        "session_count": session_count,
+        "daily_activity": daily_activity,
+    }

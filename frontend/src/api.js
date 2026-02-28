@@ -171,3 +171,6 @@ export function getActiveTimer() {
 export function getTimeSummary(initiativeId) {
   return request(`/work/time/${initiativeId}/summary`);
 }
+export function getWorkStats() {
+  return request('/work/stats');
+}
