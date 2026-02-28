@@ -45,6 +45,9 @@ class Initiative(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
+    path = Column(String(500), nullable=True)
+    url = Column(String(500), nullable=True)
+    phase = Column(String(255), nullable=True)
     category = Column(
         SAEnum(CategoryEnum, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
@@ -145,3 +148,26 @@ class TimeEntry(Base):
     notes = Column(String(500), nullable=True)
 
     initiative = relationship("Initiative", back_populates="time_entries")
+
+
+class ClaudeProjectTodo(Base):
+    __tablename__ = "claude_project_todos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_slug = Column(String(100), nullable=False, index=True)
+    text = Column(String(500), nullable=False)
+    completed = Column(Boolean, default=False)
+    order_index = Column(Integer, default=0)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+
+class ClaudeTimeEntry(Base):
+    __tablename__ = "claude_time_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_slug = Column(String(100), nullable=False, index=True)
+    start_time = Column(DateTime, nullable=False, default=utcnow)
+    end_time = Column(DateTime, nullable=True)
+    duration_seconds = Column(Integer, nullable=True)
+    notes = Column(String(500), nullable=True)

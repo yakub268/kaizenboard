@@ -253,6 +253,9 @@ def list_work_projects(
             updated_at=initiative.updated_at,
             todos=[TodoResponse.model_validate(t) for t in initiative.todos],
             time_summary=summary,
+            path=initiative.path,
+            url=initiative.url,
+            phase=initiative.phase,
         )
         results.append(project)
 

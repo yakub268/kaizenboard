@@ -121,6 +121,27 @@ export function getClaudeBacklog() {
 export function syncClaudeProjects() {
   return request('/claude/sync', { method: 'POST' });
 }
+export function createClaudeTodo(slug, data) {
+  return request(`/claude/projects/${slug}/todos`, { method: 'POST', body: JSON.stringify(data) });
+}
+export function toggleClaudeTodo(todoId) {
+  return request(`/claude/todos/${todoId}/toggle`, { method: 'PATCH' });
+}
+export function deleteClaudeTodo(todoId) {
+  return request(`/claude/todos/${todoId}`, { method: 'DELETE' });
+}
+export function startClaudeTimer(projectSlug, notes) {
+  return request('/claude/time/start', { method: 'POST', body: JSON.stringify({ project_slug: projectSlug, notes: notes || null }) });
+}
+export function stopClaudeTimer(notes) {
+  return request('/claude/time/stop', { method: 'POST', body: JSON.stringify({ notes: notes || null }) });
+}
+export function getClaudeActiveTimer() {
+  return request('/claude/time/active');
+}
+export function getClaudeTimeSummary(slug) {
+  return request(`/claude/time/${slug}/summary`);
+}
 
 // Work Projects
 export function getWorkProjects() {

@@ -147,13 +147,69 @@ class TopImprovement(BaseModel):
 
 # ── Claude Projects ────────────────────────────────────────────────────────────
 
+class ClaudeProjectTodoCreate(BaseModel):
+    text: str = Field(..., min_length=1, max_length=500)
+    order_index: int = 0
+
+
+class ClaudeProjectTodoResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_slug: str
+    text: str
+    completed: bool
+    order_index: int
+    created_at: datetime
+    completed_at: Optional[datetime]
+
+
+class ClaudeTimeEntryStart(BaseModel):
+    project_slug: str
+    notes: Optional[str] = None
+
+
+class ClaudeTimeEntryStop(BaseModel):
+    notes: Optional[str] = None
+
+
+class ClaudeTimeEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_slug: str
+    start_time: datetime
+    end_time: Optional[datetime]
+    duration_seconds: Optional[int]
+    notes: Optional[str]
+
+
+class ClaudeTimeSummary(BaseModel):
+    project_slug: str
+    total_seconds: int
+    session_count: int
+    last_session: Optional[datetime]
+
+
+class ClaudeActiveTimer(BaseModel):
+    project_slug: str
+    project_name: str
+    start_time: datetime
+    elapsed_seconds: int
+
+
 class ClaudeProject(BaseModel):
+    id: str                      # slug, e.g. "jarvis", "trading-bot"
     name: str
     status: str                  # active | deferred | complete
     phase: Optional[str]
     last_updated: Optional[str]
     notes: List[str]
     section_header: str
+    claude_url: Optional[str] = None    # link to claude.ai or project repo
+    project_path: Optional[str] = None  # local path for resume command
+    todos: List[ClaudeProjectTodoResponse] = []
+    time_summary: Optional[ClaudeTimeSummary] = None
 
 
 class DailyActivity(BaseModel):
@@ -257,3 +313,6 @@ class WorkProjectResponse(BaseModel):
     updated_at: datetime
     todos: List[TodoResponse] = []
     time_summary: Optional[TimeEntrySummary] = None
+    path: Optional[str] = None
+    url: Optional[str] = None
+    phase: Optional[str] = None

@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
 
 from database import engine, SessionLocal, Base
-from models import Initiative, Metric, Activity, Todo, CategoryEnum, StatusEnum, PriorityEnum
+from models import Initiative, Metric, Activity, Todo, TimeEntry, ClaudeProjectTodo, CategoryEnum, StatusEnum, PriorityEnum
 import models  # registers all models with Base
 
 from routers import initiatives, metrics, dashboard, claude_projects, work_projects
@@ -17,13 +18,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-    ],
-    allow_credentials=True,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -340,6 +336,9 @@ WORK_PROJECT_SEED = [
         ),
         "status": StatusEnum.implement,
         "priority": PriorityEnum.high,
+        "phase": "Warehouse App — v1",
+        "path": r"C:\Users\yakub\Desktop\DDV5 Complete Archive",
+        "url": None,
         "todos": [
             "Review archive at Desktop\\DDV5 Complete Archive",
             "Consolidate into single active codebase",
@@ -356,6 +355,9 @@ WORK_PROJECT_SEED = [
         ),
         "status": StatusEnum.plan,
         "priority": PriorityEnum.high,
+        "phase": "Pro v2 — Docker + React frontend",
+        "path": None,
+        "url": None,
         "todos": [
             "Audit differences vs base warehouse system",
             "Decide: merge into one or keep separate",
@@ -371,6 +373,9 @@ WORK_PROJECT_SEED = [
         ),
         "status": StatusEnum.sustain,
         "priority": PriorityEnum.medium,
+        "phase": "Sustained — v1.0 live on GitHub",
+        "path": None,
+        "url": "https://github.com/yakub268",
         "todos": [
             "Tag v1.0 release on GitHub",
             "Write deployment README for other sites",
@@ -385,6 +390,9 @@ WORK_PROJECT_SEED = [
         ),
         "status": StatusEnum.verify,
         "priority": PriorityEnum.medium,
+        "phase": "Verify — Standalone HTML",
+        "path": r"C:\Users\yakub\Desktop\DDV5 Complete Archive",
+        "url": None,
         "todos": [
             "Open and test ddv5-labor-board-complete.html",
             "Decide: keep standalone or integrate into Pro",
@@ -399,6 +407,9 @@ WORK_PROJECT_SEED = [
         ),
         "status": StatusEnum.identify,
         "priority": PriorityEnum.low,
+        "phase": "Explore — Integration research",
+        "path": None,
+        "url": None,
         "todos": [
             "List 3 specific workflows to test with Cedric",
             "Draft prompts for dwelling time analysis",
@@ -406,6 +417,36 @@ WORK_PROJECT_SEED = [
         ],
     },
 ]
+
+
+# Metadata to backfill on existing installations (runs if columns are NULL)
+_WORK_PROJECT_METADATA = {
+    "DDV5 Warehouse Management System": {
+        "phase": "Warehouse App — v1",
+        "path": r"C:\Users\yakub\Desktop\DDV5 Complete Archive",
+        "url": None,
+    },
+    "DDV5 Professional (v2)": {
+        "phase": "Pro v2 — Docker + React frontend",
+        "path": None,
+        "url": None,
+    },
+    "SSD Dispatch Tracker": {
+        "phase": "Sustained — v1.0 live on GitHub",
+        "path": None,
+        "url": "https://github.com/yakub268",
+    },
+    "DDV5 Labor Board": {
+        "phase": "Verify — Standalone HTML",
+        "path": r"C:\Users\yakub\Desktop\DDV5 Complete Archive",
+        "url": None,
+    },
+    "Amazon AI / Cedric Integration": {
+        "phase": "Explore — Integration research",
+        "path": None,
+        "url": None,
+    },
+}
 
 
 def seed_database(db: Session) -> None:
@@ -453,6 +494,7 @@ def seed_work_projects(db: Session) -> None:
 
     now = _utcnow()
     for item in WORK_PROJECT_SEED:
+        item = dict(item)
         todo_texts = item.pop("todos")
         initiative = Initiative(
             **item,
@@ -475,13 +517,45 @@ def seed_work_projects(db: Session) -> None:
     db.commit()
 
 
+def migrate_schema() -> None:
+    """Add new columns to initiatives table without Alembic."""
+    with engine.connect() as conn:
+        for sql in [
+            "ALTER TABLE initiatives ADD COLUMN path TEXT",
+            "ALTER TABLE initiatives ADD COLUMN url TEXT",
+            "ALTER TABLE initiatives ADD COLUMN phase VARCHAR(255)",
+        ]:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+            except Exception:
+                pass  # Column already exists
+
+
+def backfill_work_project_metadata(db: Session) -> None:
+    """Fill path/url/phase for existing work project rows that have NULL values."""
+    for title, meta in _WORK_PROJECT_METADATA.items():
+        initiative = db.query(Initiative).filter(
+            Initiative.title == title,
+            Initiative.category == CategoryEnum.work_project,
+            Initiative.phase.is_(None),
+        ).first()
+        if initiative:
+            initiative.phase = meta.get("phase")
+            initiative.path = meta.get("path")
+            initiative.url = meta.get("url")
+    db.commit()
+
+
 @app.on_event("startup")
 def startup_event() -> None:
     Base.metadata.create_all(bind=engine)
+    migrate_schema()
     db = SessionLocal()
     try:
         seed_database(db)
         seed_work_projects(db)
+        backfill_work_project_metadata(db)
     finally:
         db.close()
 

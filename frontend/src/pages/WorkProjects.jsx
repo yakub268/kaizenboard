@@ -7,6 +7,10 @@ import {
   TrashIcon,
   PlusIcon,
   CalendarDaysIcon,
+  ArrowTopRightOnSquareIcon,
+  CommandLineIcon,
+  SparklesIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline'
 import StatusBadge from '../components/StatusBadge'
 import {
@@ -238,7 +242,20 @@ function TodoItem({ todo, onToggle, onDelete }) {
 
 function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoToggle, onTodoDelete, onTodoAdd }) {
   const [newText, setNewText] = useState('')
+  const [copied, setCopied] = useState(false)
   const inputRef = useRef(null)
+
+  async function handleResume(e) {
+    e.stopPropagation()
+    try {
+      const cmd = `cd "${project.path}" && claude`
+      await navigator.clipboard.writeText(cmd)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Clipboard copy failed', err)
+    }
+  }
 
   const isActiveTimer = activeTimer && activeTimer.initiative_id === project.id
   const hasAnyTimer = !!activeTimer
@@ -278,6 +295,9 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
             <h3 className="text-sm font-semibold text-slate-100 leading-snug">{project.title}</h3>
             <StatusBadge status={project.status} />
           </div>
+          {project.phase && (
+            <p className="text-xs text-slate-400 mt-0.5">{project.phase}</p>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {totalTime && (
@@ -285,6 +305,17 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
               <ClockIcon className="w-3.5 h-3.5" />
               {totalTime}
             </span>
+          )}
+          {project.url && (
+            <a
+              href={project.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open repository"
+              className="text-slate-600 hover:text-orange-400 transition-colors duration-150"
+            >
+              <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+            </a>
           )}
           <button
             onClick={handleTimerClick}
@@ -379,6 +410,19 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
           </span>
         )}
       </div>
+
+      {project.path && (
+        <button
+          onClick={handleResume}
+          className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-slate-400 bg-slate-800/60 hover:bg-orange-950/50 hover:text-orange-400 border border-slate-700/40 hover:border-orange-900/60 rounded-md transition-colors duration-150 cursor-pointer"
+        >
+          {copied ? (
+            <span className="text-emerald-400">Copied!</span>
+          ) : (
+            <><CommandLineIcon className="w-3.5 h-3.5" /> Resume in Claude</>
+          )}
+        </button>
+      )}
     </div>
   )
 }
@@ -571,13 +615,18 @@ export default function WorkProjects() {
     )
   }
 
-  const activeProjects = projects.filter((p) => ['implement', 'analyze', 'plan'].includes(p.status))
-  const otherProjects  = projects.filter((p) => !['implement', 'analyze', 'plan'].includes(p.status))
-  const sorted = [...activeProjects, ...otherProjects]
+  const activeStatuses = ['implement', 'analyze', 'plan', 'verify', 'sustain']
+  const activeProjects = projects.filter((p) => activeStatuses.includes(p.status))
+  const backlogProjects = projects.filter((p) => p.status === 'identify')
+  const sorted = activeProjects
 
   const completedTotal = projects.reduce((n, p) => n + p.todos.filter((t) => t.completed).length, 0)
   const todoTotal      = projects.reduce((n, p) => n + p.todos.length, 0)
   const totalLogged    = projects.reduce((n, p) => n + Math.floor((p.time_summary?.total_seconds || p.totalMinutes * 60 || 0) / 60), 0)
+  const totalSessions  = projects.reduce((n, p) => n + (p.time_summary?.session_count || 0), 0)
+  const mostWorked     = [...projects].sort((a, b) =>
+    (b.time_summary?.total_seconds || b.totalMinutes * 60 || 0) - (a.time_summary?.total_seconds || a.totalMinutes * 60 || 0)
+  )[0]
 
   return (
     <div className="py-6 px-16 max-w-7xl">
@@ -594,19 +643,28 @@ export default function WorkProjects() {
           </div>
         </div>
 
-        {/* Summary pills */}
-        <div className="flex items-center gap-3 text-xs text-slate-500">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/60 rounded-lg border border-slate-700/50">
-            <span className="text-slate-300 font-semibold">{completedTotal}/{todoTotal}</span>
-            todos done
-          </div>
-          {totalLogged > 0 && (
+        <div className="flex items-center gap-3">
+          {/* Summary pills */}
+          <div className="flex items-center gap-3 text-xs text-slate-500">
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/60 rounded-lg border border-slate-700/50">
-              <ClockIcon className="w-3.5 h-3.5 text-orange-400" />
-              <span className="text-slate-300 font-semibold">{formatTotalTime(totalLogged)}</span>
-              logged
+              <span className="text-slate-300 font-semibold">{completedTotal}/{todoTotal}</span>
+              todos done
             </div>
-          )}
+            {totalLogged > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/60 rounded-lg border border-slate-700/50">
+                <ClockIcon className="w-3.5 h-3.5 text-orange-400" />
+                <span className="text-slate-300 font-semibold">{formatTotalTime(totalLogged)}</span>
+                logged
+              </div>
+            )}
+          </div>
+          <button
+            onClick={fetchAll}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-300 hover:text-white text-sm font-medium rounded-lg transition-colors duration-150 cursor-pointer"
+          >
+            <ArrowPathIcon className="w-4 h-4" />
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -641,6 +699,77 @@ export default function WorkProjects() {
           ))}
         </div>
       </section>
+
+      {/* ── Time Stats ─────────────────────────────────────────────── */}
+      <section className="mt-10 mb-10">
+        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">
+          Time Summary
+        </h2>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-slate-900 rounded-xl border border-slate-800/80 px-5 py-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+              <ClockIcon className="w-5 h-5 text-slate-400" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 font-medium">Total Logged</p>
+              <p className="text-xl font-bold text-slate-100 mt-0.5">{formatTotalTime(totalLogged) || '0m'}</p>
+            </div>
+          </div>
+          <div className="bg-slate-900 rounded-xl border border-slate-800/80 px-5 py-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+              <SparklesIcon className="w-5 h-5 text-slate-400" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 font-medium">Sessions</p>
+              <p className="text-xl font-bold text-slate-100 mt-0.5">{totalSessions}</p>
+            </div>
+          </div>
+          <div className="bg-slate-900 rounded-xl border border-slate-800/80 px-5 py-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+              <BriefcaseIcon className="w-5 h-5 text-slate-400" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 font-medium">Most Worked</p>
+              <p className="text-sm font-bold text-slate-100 mt-0.5 truncate max-w-[140px]">
+                {mostWorked && (mostWorked.time_summary?.total_seconds || mostWorked.totalMinutes)
+                  ? mostWorked.title
+                  : '—'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Backlog ─────────────────────────────────────────────────── */}
+      {backlogProjects.length > 0 && (
+        <section className="mb-10">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">
+            Backlog / Not Started
+            <span className="ml-2 px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded text-[10px] font-medium normal-case tracking-normal">
+              {backlogProjects.length}
+            </span>
+          </h2>
+          <div className="bg-slate-900 rounded-xl border border-slate-800/80 divide-y divide-slate-800/60">
+            {backlogProjects.map((p) => (
+              <div key={p.id} className="flex items-center gap-4 px-5 py-4">
+                <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded bg-slate-800 text-slate-500 ring-1 ring-inset ring-slate-700/50">
+                  Not Started
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-slate-300 leading-relaxed">{p.title}</p>
+                  {p.phase && <p className="text-xs text-slate-500 mt-0.5">{p.phase}</p>}
+                </div>
+                <span className={`flex-shrink-0 px-2 py-0.5 text-[10px] font-semibold uppercase rounded-full ${
+                  p.priority === 'critical' ? 'bg-red-950/60 text-red-400' :
+                  p.priority === 'high' ? 'bg-orange-950/60 text-orange-400' :
+                  p.priority === 'medium' ? 'bg-amber-950/60 text-amber-400' :
+                  'bg-slate-800 text-slate-500'
+                }`}>{p.priority}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Toast */}
       {toast && (

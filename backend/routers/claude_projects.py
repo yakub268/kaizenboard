@@ -12,14 +12,50 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import CategoryEnum, Initiative, PriorityEnum, StatusEnum
-from schemas import BacklogItem, ClaudeProject, DailyActivity, SessionStats, SyncResult
+from models import CategoryEnum, ClaudeProjectTodo, ClaudeTimeEntry, Initiative, PriorityEnum, StatusEnum
+from schemas import (
+    BacklogItem,
+    ClaudeActiveTimer,
+    ClaudeProject,
+    ClaudeProjectTodoCreate,
+    ClaudeProjectTodoResponse,
+    ClaudeTimeEntryResponse,
+    ClaudeTimeEntryStart,
+    ClaudeTimeEntryStop,
+    ClaudeTimeSummary,
+    DailyActivity,
+    SessionStats,
+    SyncResult,
+)
 
 router = APIRouter(prefix="/api/claude", tags=["claude"])
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _build_claude_time_summary(db: Session, slug: str) -> ClaudeTimeSummary:
+    entries = (
+        db.query(ClaudeTimeEntry)
+        .filter(
+            ClaudeTimeEntry.project_slug == slug,
+            ClaudeTimeEntry.duration_seconds.isnot(None),
+        )
+        .all()
+    )
+    total = sum(e.duration_seconds for e in entries if e.duration_seconds)
+    last = max((e.end_time for e in entries if e.end_time), default=None)
+    return ClaudeTimeSummary(
+        project_slug=slug,
+        total_seconds=total,
+        session_count=len(entries),
+        last_session=last,
+    )
 
 # ── File paths ─────────────────────────────────────────────────────────────────
 
@@ -35,7 +71,25 @@ _PROJECT_MAP: dict[str, str] = {
     "open source": "Open Source Contributions",
 }
 
+_PROJECT_PATHS: dict[str, str] = {
+    "JARVIS": r"C:/Users/yakub/.jarvis",
+    "Trading Bot": r"C:/Users/yakub/Desktop/trading_bot",
+    "Claude Multi-Agent Bridge": r"C:/Users/yakub/claude-multi-agent-bridge",
+    "Open Source Contributions": None,
+}
+
+_PROJECT_URLS: dict[str, str] = {
+    "JARVIS": "https://claude.ai/",
+    "Trading Bot": "https://claude.ai/",
+    "Claude Multi-Agent Bridge": "https://github.com/yakub268/claude-multi-agent-bridge",
+    "Open Source Contributions": "https://github.com/yakub268",
+}
+
 _DATE_RE = re.compile(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}")
+
+
+def _project_slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
 def _read_memory() -> str:
@@ -147,6 +201,11 @@ def _parse_projects() -> list[ClaudeProject]:
         if _infer_status(header, body) == "deferred":
             entry["status"] = "deferred"
 
+    for name, entry in grouped.items():
+        entry["claude_url"] = _PROJECT_URLS.get(name)
+        entry["project_path"] = _PROJECT_PATHS.get(name)
+        entry["id"] = _project_slug(name)
+
     return [ClaudeProject(**v) for v in grouped.values()]
 
 
@@ -182,8 +241,69 @@ def _status_to_initiative_status(project_status: str) -> StatusEnum:
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("/projects", response_model=List[ClaudeProject])
-def list_claude_projects() -> List[ClaudeProject]:
-    return _parse_projects()
+def list_claude_projects(db: Session = Depends(get_db)) -> List[ClaudeProject]:
+    projects = _parse_projects()
+    slugs = [p.id for p in projects]
+    todos_all = (
+        db.query(ClaudeProjectTodo)
+        .filter(ClaudeProjectTodo.project_slug.in_(slugs))
+        .order_by(ClaudeProjectTodo.order_index)
+        .all()
+    )
+    todos_map: dict[str, list] = {}
+    for t in todos_all:
+        todos_map.setdefault(t.project_slug, []).append(
+            ClaudeProjectTodoResponse.model_validate(t)
+        )
+    for p in projects:
+        p.todos = todos_map.get(p.id, [])
+        p.time_summary = _build_claude_time_summary(db, p.id)
+    return projects
+
+
+@router.get("/projects/{slug}/todos", response_model=List[ClaudeProjectTodoResponse])
+def list_claude_todos(slug: str, db: Session = Depends(get_db)):
+    return (
+        db.query(ClaudeProjectTodo)
+        .filter(ClaudeProjectTodo.project_slug == slug)
+        .order_by(ClaudeProjectTodo.order_index)
+        .all()
+    )
+
+
+@router.post("/projects/{slug}/todos", response_model=ClaudeProjectTodoResponse, status_code=201)
+def create_claude_todo(slug: str, payload: ClaudeProjectTodoCreate, db: Session = Depends(get_db)):
+    todo = ClaudeProjectTodo(
+        project_slug=slug,
+        text=payload.text,
+        order_index=payload.order_index,
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    db.add(todo)
+    db.commit()
+    db.refresh(todo)
+    return todo
+
+
+@router.patch("/todos/{todo_id}/toggle", response_model=ClaudeProjectTodoResponse)
+def toggle_claude_todo(todo_id: int, db: Session = Depends(get_db)):
+    todo = db.query(ClaudeProjectTodo).filter(ClaudeProjectTodo.id == todo_id).first()
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    todo.completed = not todo.completed
+    todo.completed_at = datetime.now(timezone.utc).replace(tzinfo=None) if todo.completed else None
+    db.commit()
+    db.refresh(todo)
+    return todo
+
+
+@router.delete("/todos/{todo_id}", status_code=204)
+def delete_claude_todo(todo_id: int, db: Session = Depends(get_db)):
+    todo = db.query(ClaudeProjectTodo).filter(ClaudeProjectTodo.id == todo_id).first()
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    db.delete(todo)
+    db.commit()
 
 
 @router.get("/sessions", response_model=SessionStats)
@@ -287,6 +407,61 @@ def sync_projects(db: Session = Depends(get_db)) -> SyncResult:
 
     db.commit()
     return SyncResult(created=created, updated=updated, projects=synced_names)
+
+
+@router.post("/time/start", response_model=ClaudeTimeEntryResponse, status_code=201)
+def start_claude_timer(payload: ClaudeTimeEntryStart, db: Session = Depends(get_db)):
+    active = db.query(ClaudeTimeEntry).filter(ClaudeTimeEntry.end_time.is_(None)).first()
+    if active:
+        now = _utcnow()
+        active.end_time = now
+        active.duration_seconds = int((now - active.start_time).total_seconds())
+
+    now = _utcnow()
+    entry = ClaudeTimeEntry(project_slug=payload.project_slug, start_time=now, notes=payload.notes)
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@router.post("/time/stop", response_model=ClaudeTimeEntryResponse)
+def stop_claude_timer(payload: ClaudeTimeEntryStop, db: Session = Depends(get_db)):
+    active = db.query(ClaudeTimeEntry).filter(ClaudeTimeEntry.end_time.is_(None)).first()
+    if not active:
+        raise HTTPException(status_code=404, detail="No active timer running")
+
+    now = _utcnow()
+    active.end_time = now
+    active.duration_seconds = int((now - active.start_time).total_seconds())
+    if payload.notes is not None:
+        active.notes = payload.notes
+
+    db.commit()
+    db.refresh(active)
+    return active
+
+
+@router.get("/time/active", response_model=ClaudeActiveTimer)
+def get_claude_active_timer(db: Session = Depends(get_db)):
+    active = db.query(ClaudeTimeEntry).filter(ClaudeTimeEntry.end_time.is_(None)).first()
+    if not active:
+        raise HTTPException(status_code=404, detail="No active timer running")
+
+    projects = _parse_projects()
+    proj = next((p for p in projects if p.id == active.project_slug), None)
+    elapsed = int((_utcnow() - active.start_time).total_seconds())
+    return ClaudeActiveTimer(
+        project_slug=active.project_slug,
+        project_name=proj.name if proj else active.project_slug,
+        start_time=active.start_time,
+        elapsed_seconds=elapsed,
+    )
+
+
+@router.get("/time/{slug}/summary", response_model=ClaudeTimeSummary)
+def get_claude_time_summary(slug: str, db: Session = Depends(get_db)):
+    return _build_claude_time_summary(db, slug)
 
 
 @router.get("/backlog", response_model=List[BacklogItem])
