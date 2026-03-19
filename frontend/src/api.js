@@ -159,6 +159,14 @@ export function getClaudeStatsSummary() {
   return request('/claude/stats/summary');
 }
 
+export function getClaudeCosts() {
+  return request('/claude/costs');
+}
+
+export function getDashboardOverview() {
+  return request('/dashboard/overview');
+}
+
 // Work Projects
 export function getWorkProjects() {
   return request('/work/projects');

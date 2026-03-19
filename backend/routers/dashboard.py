@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
 from database import get_db
-from models import Initiative, Metric, StatusEnum, CategoryEnum
+from models import Initiative, Metric, Todo, StatusEnum, CategoryEnum, ClaudeRegisteredProject, ClaudeSessionClassification
 from schemas import DashboardSummary, StatusCount, CategoryCount, TimelineEntry, TopImprovement
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -82,6 +82,71 @@ def get_summary(db: Session = Depends(get_db)) -> DashboardSummary:
         total_cost_savings=cost_savings_total if cost_savings_total else None,
         completion_rate=completion_rate,
     )
+
+
+@router.get("/overview")
+def get_overview(db: Session = Depends(get_db)):
+    """Combined dashboard stats: kaizen + Claude + work projects."""
+    try:
+        # Claude projects
+        claude_projects = db.query(func.count(ClaudeRegisteredProject.id)).scalar() or 0
+        claude_sessions = (
+            db.query(func.count(ClaudeSessionClassification.id))
+            .filter(ClaudeSessionClassification.project_slug.isnot(None))
+            .scalar()
+        ) or 0
+        most_active = (
+            db.query(ClaudeSessionClassification.project_name, func.count(ClaudeSessionClassification.id).label("cnt"))
+            .filter(ClaudeSessionClassification.project_slug.isnot(None))
+            .group_by(ClaudeSessionClassification.project_name)
+            .order_by(func.count(ClaudeSessionClassification.id).desc())
+            .first()
+        )
+
+        # Work projects
+        work_total = db.query(func.count(Initiative.id)).filter(Initiative.category == CategoryEnum.work_project).scalar() or 0
+        work_todos = db.query(func.count(Todo.id)).join(Initiative).filter(Initiative.category == CategoryEnum.work_project).scalar() or 0
+        work_todos_done = (
+            db.query(func.count(Todo.id))
+            .join(Initiative)
+            .filter(Initiative.category == CategoryEnum.work_project, Todo.completed == True)
+            .scalar()
+        ) or 0
+
+        # Cost data
+        import json, os
+        costs_file = os.path.join(os.path.dirname(__file__), '..', 'project_costs.json')
+        total_cost = 0.0
+        if os.path.exists(costs_file):
+            with open(costs_file, 'r') as f:
+                for c in json.load(f):
+                    total_cost += c.get('estimated_cost', 0)
+
+        # Kaizen initiatives (non-work, non-ai)
+        kaizen_total = db.query(func.count(Initiative.id)).filter(
+            Initiative.category.notin_([CategoryEnum.work_project, CategoryEnum.ai_project, CategoryEnum.other])
+        ).scalar() or 0
+
+        return {
+            "claude": {
+                "projects": claude_projects,
+                "sessions": claude_sessions,
+                "most_active": most_active[0] if most_active else None,
+                "most_active_count": most_active[1] if most_active else 0,
+                "total_cost": round(total_cost, 2),
+            },
+            "work": {
+                "projects": work_total,
+                "todos_total": work_todos,
+                "todos_done": work_todos_done,
+                "completion_pct": round(work_todos_done / work_todos * 100, 1) if work_todos > 0 else 0,
+            },
+            "kaizen": {
+                "initiatives": kaizen_total,
+            },
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @router.get("/timeline", response_model=List[TimelineEntry])

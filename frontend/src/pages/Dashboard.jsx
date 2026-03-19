@@ -21,7 +21,7 @@ import {
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
 } from '@heroicons/react/24/outline'
-import { getDashboardSummary, getDashboardTimeline, getTopImprovements } from '../api'
+import { getDashboardSummary, getDashboardTimeline, getTopImprovements, getDashboardOverview } from '../api'
 
 ChartJS.register(
   CategoryScale,
@@ -97,19 +97,22 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null)
   const [timeline, setTimeline] = useState(null)
   const [topImprovements, setTopImprovements] = useState(null)
+  const [overview, setOverview] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [summaryData, timelineData, topData] = await Promise.all([
+        const [summaryData, timelineData, topData, overviewData] = await Promise.all([
           getDashboardSummary(),
           getDashboardTimeline(),
           getTopImprovements(),
+          getDashboardOverview().catch(() => null),
         ])
         setSummary(summaryData)
         setTimeline(timelineData)
         setTopImprovements(topData)
+        setOverview(overviewData)
       } catch {
         setSummary(getDemoSummary())
         setTimeline(getDemoTimeline())
@@ -248,6 +251,58 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold text-slate-100">Dashboard</h1>
         <p className="text-sm text-slate-500 mt-0.5">Overview of continuous improvement performance</p>
       </div>
+
+      {/* Overview: Claude + Work + Kaizen */}
+      {overview && (
+        <div className="grid grid-cols-3 gap-5 mb-6">
+          <div className="bg-slate-900 rounded-xl border border-orange-800/30 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center">
+                <BoltIcon className="w-4 h-4 text-orange-400" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-200">Claude Projects</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div><span className="text-2xl font-bold text-orange-400">{overview.claude?.projects || 0}</span><p className="text-slate-500 mt-0.5">projects</p></div>
+              <div><span className="text-2xl font-bold text-slate-200">{overview.claude?.sessions || 0}</span><p className="text-slate-500 mt-0.5">sessions</p></div>
+              <div><span className="text-sm font-medium text-slate-300">{overview.claude?.most_active || '—'}</span><p className="text-slate-500 mt-0.5">most active</p></div>
+              <div><span className="text-sm font-medium text-emerald-400">${overview.claude?.total_cost?.toFixed(2) || '0.00'}</span><p className="text-slate-500 mt-0.5">est. cost</p></div>
+            </div>
+          </div>
+          <div className="bg-slate-900 rounded-xl border border-blue-800/30 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center">
+                <RocketLaunchIcon className="w-4 h-4 text-blue-400" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-200">Work Projects</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div><span className="text-2xl font-bold text-blue-400">{overview.work?.projects || 0}</span><p className="text-slate-500 mt-0.5">projects</p></div>
+              <div><span className="text-2xl font-bold text-slate-200">{overview.work?.completion_pct || 0}%</span><p className="text-slate-500 mt-0.5">todos done</p></div>
+              <div className="col-span-2">
+                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${overview.work?.completion_pct || 0}%` }} />
+                </div>
+                <p className="text-slate-500 mt-1">{overview.work?.todos_done || 0}/{overview.work?.todos_total || 0} todos</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-slate-900 rounded-xl border border-emerald-800/30 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                <CheckCircleIcon className="w-4 h-4 text-emerald-400" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-200">Kaizen Initiatives</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div><span className="text-2xl font-bold text-emerald-400">{overview.kaizen?.initiatives || 0}</span><p className="text-slate-500 mt-0.5">initiatives</p></div>
+              <div><span className="text-2xl font-bold text-slate-200">{activeCount}</span><p className="text-slate-500 mt-0.5">active</p></div>
+              <div><span className="text-sm font-medium text-slate-300">{(summary?.completion_rate || 0).toFixed(0)}%</span><p className="text-slate-500 mt-0.5">completion rate</p></div>
+              <div><span className="text-sm font-medium text-slate-300">${((summary?.total_cost_savings || 0) / 1000).toFixed(1)}k</span><p className="text-slate-500 mt-0.5">cost saved</p></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-5 mb-8">
         <SummaryCard title="Total Initiatives" value={summary?.total_initiatives || 0} subtitle="across all stages" icon={RocketLaunchIcon} />

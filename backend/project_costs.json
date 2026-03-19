@@ -1,0 +1,52 @@
+[
+  {
+    "project": "Claude Improvement",
+    "sessions": 13,
+    "messages": 1661,
+    "input_tokens": 5742,
+    "output_tokens": 340732,
+    "cache_read_tokens": 158554615,
+    "cache_write_tokens": 7396357,
+    "estimated_cost": 402.15
+  },
+  {
+    "project": "Unclassified",
+    "sessions": 13,
+    "messages": 402,
+    "input_tokens": 1478,
+    "output_tokens": 131416,
+    "cache_read_tokens": 25120035,
+    "cache_write_tokens": 3230551,
+    "estimated_cost": 106.13
+  },
+  {
+    "project": "Windows MCP",
+    "sessions": 1,
+    "messages": 87,
+    "input_tokens": 123,
+    "output_tokens": 24723,
+    "cache_read_tokens": 5296857,
+    "cache_write_tokens": 295931,
+    "estimated_cost": 15.35
+  },
+  {
+    "project": "Trading Bot",
+    "sessions": 1,
+    "messages": 28,
+    "input_tokens": 60,
+    "output_tokens": 8136,
+    "cache_read_tokens": 1164381,
+    "cache_write_tokens": 195118,
+    "estimated_cost": 6.02
+  },
+  {
+    "project": "Claude Multi-Agent Bridge",
+    "sessions": 1,
+    "messages": 3,
+    "input_tokens": 9,
+    "output_tokens": 788,
+    "cache_read_tokens": 42961,
+    "cache_write_tokens": 47273,
+    "estimated_cost": 1.01
+  }
+]

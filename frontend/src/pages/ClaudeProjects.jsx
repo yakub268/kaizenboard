@@ -28,6 +28,8 @@ import {
   getClaudeActiveTimer,
   registerClaudeProject,
   unregisterClaudeProject,
+  getClaudeProjectSessions,
+  getClaudeCosts,
 } from '../api'
 
 // ─── Status badge ──────────────────────────────────────────────────────────────
@@ -144,8 +146,11 @@ function TodoItem({ todo, onToggle, onDelete }) {
 
 // ─── Project card ──────────────────────────────────────────────────────────────
 
-function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoToggle, onTodoDelete, onTodoAdd }) {
+function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoToggle, onTodoDelete, onTodoAdd, onOpenDetail }) {
   const [expanded, setExpanded] = useState(false)
+  const [sessionsExpanded, setSessionsExpanded] = useState(false)
+  const [fullSessions, setFullSessions] = useState(null)
+  const [loadingSessions, setLoadingSessions] = useState(false)
   const [copied, setCopied] = useState(false)
   const [newText, setNewText] = useState('')
   const inputRef = useRef(null)
@@ -179,8 +184,8 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
 
   function handleCardClick(e) {
     if (e.target.closest('[data-no-nav]')) return
-    if (project.boardFilter) {
-      navigate(`/?category=${project.boardFilter}`)
+    if (onOpenDetail) {
+      onOpenDetail(project)
     }
   }
 
@@ -255,6 +260,11 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
         <p className="text-xs text-slate-400 leading-relaxed">{project.phase}</p>
       )}
 
+      {/* Project path */}
+      {projectPath && (
+        <p className="text-[10px] text-slate-600 font-mono truncate" title={projectPath}>{projectPath}</p>
+      )}
+
       {/* Notes list */}
       {notes.length > 0 && (
         <ul className="space-y-1.5">
@@ -282,17 +292,76 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
       )}
 
       {/* ── Recent sessions ── */}
-      {recentTopics.length > 0 && (
-        <div className="border-t border-slate-800/50 pt-3">
-          <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-1.5">Recent Sessions</p>
-          <ul className="space-y-1">
-            {recentTopics.map((topic, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs text-slate-500">
-                <CommandLineIcon className="w-3 h-3 mt-0.5 flex-shrink-0 text-blue-600" />
-                <span className="leading-relaxed line-clamp-2">{topic}</span>
-              </li>
-            ))}
-          </ul>
+      {(recentTopics.length > 0 || project.code_sessions > 0) && (
+        <div className="border-t border-slate-800/50 pt-3" data-no-nav="true" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={async () => {
+              if (!sessionsExpanded && !fullSessions && project.id) {
+                setLoadingSessions(true)
+                try {
+                  const data = await getClaudeProjectSessions(project.id, 10)
+                  setFullSessions(data)
+                } catch { setFullSessions([]) }
+                setLoadingSessions(false)
+              }
+              setSessionsExpanded(v => !v)
+            }}
+            className="flex items-center gap-1.5 w-full text-left cursor-pointer group"
+          >
+            <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest group-hover:text-slate-400 transition-colors">
+              Recent Sessions
+            </p>
+            {project.code_sessions > 0 && (
+              <span className="text-[10px] text-blue-500 font-medium">({project.code_sessions})</span>
+            )}
+            <span className="ml-auto text-slate-600 group-hover:text-slate-400 transition-colors">
+              {sessionsExpanded ? <ChevronUpIcon className="w-3.5 h-3.5" /> : <ChevronDownIcon className="w-3.5 h-3.5" />}
+            </span>
+          </button>
+          {!sessionsExpanded && recentTopics.length > 0 && (
+            <ul className="space-y-1 mt-1.5">
+              {recentTopics.slice(0, 2).map((topic, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-slate-500">
+                  <CommandLineIcon className="w-3 h-3 mt-0.5 flex-shrink-0 text-blue-600" />
+                  <span className="leading-relaxed line-clamp-1">{topic}</span>
+                </li>
+              ))}
+              {recentTopics.length > 2 && (
+                <li className="text-[10px] text-slate-600 pl-5">+{recentTopics.length - 2} more</li>
+              )}
+            </ul>
+          )}
+          {sessionsExpanded && (
+            <div className="mt-2">
+              {loadingSessions && (
+                <div className="flex items-center gap-2 py-2 text-xs text-slate-500">
+                  <div className="w-3 h-3 border border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  Loading sessions...
+                </div>
+              )}
+              {!loadingSessions && (
+                <ul className="space-y-1.5">
+                  {(fullSessions || recentTopics.map((t, i) => ({ session_id: i, first_message: t, confidence: null, classified_at: null }))).map((s, i) => (
+                    <li key={s.session_id || i} className="flex items-start gap-2 text-xs text-slate-400 py-0.5">
+                      <CommandLineIcon className="w-3 h-3 mt-0.5 flex-shrink-0 text-blue-500" />
+                      <div className="flex-1 min-w-0">
+                        <span className="leading-relaxed line-clamp-2 block">{s.first_message || s}</span>
+                        {s.confidence != null && (
+                          <span className="text-[9px] text-slate-600 mt-0.5 block">
+                            conf: {(s.confidence * 100).toFixed(0)}%
+                            {s.classified_at && ` · ${new Date(s.classified_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                  {fullSessions && fullSessions.length === 0 && (
+                    <li className="text-xs text-slate-600 py-1">No classified sessions found</li>
+                  )}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -379,6 +448,233 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
           )}
         </button>
       )}
+    </div>
+  )
+}
+
+// ─── Project Detail Modal ─────────────────────────────────────────────────────
+
+function ProjectDetailModal({ project, onClose }) {
+  const [sessions, setSessions] = useState(null)
+  const [loadingSessions, setLoadingSessions] = useState(true)
+
+  useEffect(() => {
+    if (!project) return
+    setLoadingSessions(true)
+    getClaudeProjectSessions(project.id, 20)
+      .then(setSessions)
+      .catch(() => setSessions([]))
+      .finally(() => setLoadingSessions(false))
+  }, [project])
+
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  if (!project) return null
+
+  const projectPath = project.projectPath || project.project_path
+  const claudeUrl = project.claudeUrl || project.claude_url
+  const todos = project.todos || []
+  const notes = project.notes || []
+  const completedCount = todos.filter(t => t.completed).length
+  const totalTime = formatTotalTime(project.time_summary?.total_seconds || 0)
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto py-8"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-slate-900 border border-slate-700/60 rounded-2xl w-full max-w-2xl shadow-2xl mx-4 animate-fade-in">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 p-6 border-b border-slate-800/60">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-1">
+              <h2 className="text-lg font-bold text-slate-100 truncate">{project.name}</h2>
+              <StatusBadge status={project.status} />
+            </div>
+            {project.phase && (
+              <p className="text-sm text-slate-400">{project.phase}</p>
+            )}
+            {projectPath && (
+              <p className="text-xs text-slate-600 font-mono mt-1 truncate" title={projectPath}>{projectPath}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {claudeUrl && (
+              <a
+                href={claudeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 text-xs font-medium text-slate-400 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 rounded-lg transition-colors"
+              >
+                <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 inline mr-1" />
+                Claude
+              </a>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-500 hover:text-slate-300 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Stats row */}
+          <div className="flex items-center gap-4 flex-wrap">
+            {project.code_sessions > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-950/40 border border-blue-800/40 rounded-lg">
+                <CommandLineIcon className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-xs font-medium text-blue-300">{project.code_sessions} sessions</span>
+              </div>
+            )}
+            {totalTime && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-950/40 border border-orange-800/40 rounded-lg">
+                <ClockIcon className="w-3.5 h-3.5 text-orange-400" />
+                <span className="text-xs font-medium text-orange-300">{totalTime} logged</span>
+              </div>
+            )}
+            {project.time_summary?.session_count > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/60 border border-slate-700/40 rounded-lg">
+                <span className="text-xs text-slate-400">{project.time_summary.session_count} timer sessions</span>
+              </div>
+            )}
+            {project.costData && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/40 border border-emerald-800/40 rounded-lg">
+                <span className="text-xs font-medium text-emerald-300">${project.costData.estimated_cost.toFixed(2)}</span>
+                <span className="text-[10px] text-emerald-600">estimated</span>
+              </div>
+            )}
+            <span className={`px-2 py-0.5 text-[10px] font-medium rounded-md ring-1 ring-inset ${
+              project.source === 'registered'
+                ? 'bg-purple-950/60 text-purple-400 ring-purple-800/50'
+                : 'bg-slate-800 text-slate-500 ring-slate-700/50'
+            }`}>
+              {project.source === 'registered' ? 'Manual' : 'Memory'}
+            </span>
+          </div>
+
+          {/* Token usage breakdown */}
+          {project.costData && (
+            <div className="bg-slate-800/30 rounded-lg p-3">
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Token Usage</h3>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex justify-between"><span className="text-slate-500">Input tokens</span><span className="text-slate-300 font-mono">{project.costData.input_tokens.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Output tokens</span><span className="text-slate-300 font-mono">{project.costData.output_tokens.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Cache read</span><span className="text-slate-300 font-mono">{project.costData.cache_read_tokens.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Cache write</span><span className="text-slate-300 font-mono">{project.costData.cache_write_tokens.toLocaleString()}</span></div>
+                <div className="flex justify-between col-span-2 pt-1 border-t border-slate-700/50"><span className="text-slate-400 font-medium">Messages</span><span className="text-slate-200 font-mono font-medium">{project.costData.messages.toLocaleString()}</span></div>
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          {notes.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Notes</h3>
+              <ul className="space-y-1.5 bg-slate-800/30 rounded-lg p-3">
+                {notes.map((note, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                    <span className="mt-1.5 w-1 h-1 rounded-full bg-orange-500 flex-shrink-0" />
+                    <span className="leading-relaxed">{note}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Todos */}
+          <div>
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">
+              Todos
+              {todos.length > 0 && (
+                <span className="ml-2 text-slate-400 normal-case tracking-normal font-normal">
+                  {completedCount}/{todos.length} done
+                </span>
+              )}
+            </h3>
+            {todos.length > 0 && (
+              <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mb-3">
+                <div
+                  className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                  style={{ width: `${todos.length > 0 ? Math.round((completedCount / todos.length) * 100) : 0}%` }}
+                />
+              </div>
+            )}
+            {todos.length === 0 ? (
+              <p className="text-xs text-slate-600 bg-slate-800/30 rounded-lg p-3">No todos yet</p>
+            ) : (
+              <ul className="space-y-1 bg-slate-800/30 rounded-lg p-3">
+                {todos.map((todo) => (
+                  <li key={todo.id} className="flex items-center gap-2 py-1">
+                    <span className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center ${
+                      todo.completed
+                        ? 'bg-orange-500 border-orange-500'
+                        : 'border-slate-600 bg-transparent'
+                    }`}>
+                      {todo.completed && (
+                        <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 10 10">
+                          <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className={`text-xs ${todo.completed ? 'line-through text-slate-500' : 'text-slate-300'}`}>
+                      {todo.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Session History */}
+          <div>
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">
+              Session History
+              {sessions && <span className="ml-2 text-slate-400 normal-case tracking-normal font-normal">{sessions.length} recent</span>}
+            </h3>
+            {loadingSessions ? (
+              <div className="flex items-center gap-2 py-4 justify-center text-xs text-slate-500 bg-slate-800/30 rounded-lg">
+                <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                Loading sessions...
+              </div>
+            ) : sessions && sessions.length > 0 ? (
+              <div className="space-y-1 bg-slate-800/30 rounded-lg p-3 max-h-64 overflow-y-auto">
+                {sessions.map((s, i) => (
+                  <div key={s.session_id || i} className="flex items-start gap-2 py-1.5 border-b border-slate-700/30 last:border-0">
+                    <CommandLineIcon className="w-3 h-3 mt-0.5 flex-shrink-0 text-blue-500" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-slate-300 leading-relaxed">{s.first_message}</p>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        {s.confidence != null && (
+                          <span className={`text-[9px] font-medium ${
+                            s.confidence >= 0.8 ? 'text-emerald-600' : s.confidence >= 0.5 ? 'text-amber-600' : 'text-red-600'
+                          }`}>
+                            {(s.confidence * 100).toFixed(0)}% match
+                          </span>
+                        )}
+                        {s.classified_at && (
+                          <span className="text-[9px] text-slate-600">
+                            {new Date(s.classified_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-600 bg-slate-800/30 rounded-lg p-3">No classified sessions</p>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -673,6 +969,8 @@ export default function ClaudeProjects() {
   const [activeClaudeTimer, setActiveClaudeTimer] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [classifying, setClassifying] = useState(false)
+  const [detailProject, setDetailProject] = useState(null)
+  const [costs, setCosts] = useState({})
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type })
@@ -680,16 +978,23 @@ export default function ClaudeProjects() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [p, s, b, timer] = await Promise.all([
+      const [p, s, b, timer, costData] = await Promise.all([
         getClaudeProjects(),
         getClaudeSessions(),
         getClaudeBacklog(),
         getClaudeActiveTimer().catch(() => null),
+        getClaudeCosts().catch(() => []),
       ])
       setProjects(p)
       setSessions(s)
       setBacklog(b)
       setActiveClaudeTimer(timer)
+      const costMap = {}
+      for (const c of costData) {
+        const slug = c.project.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        costMap[slug] = c
+      }
+      setCosts(costMap)
     } catch {
       setProjects(getDemoProjects())
       setSessions(getDemoSessions())
@@ -901,6 +1206,14 @@ export default function ClaudeProjects() {
                 logged
               </div>
             )}
+            {Object.keys(costs).length > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/40 rounded-lg border border-emerald-800/40">
+                <span className="text-emerald-300 font-semibold">
+                  ${Object.values(costs).reduce((sum, c) => sum + (c.estimated_cost || 0), 0).toFixed(2)}
+                </span>
+                <span className="text-emerald-600">total cost</span>
+              </div>
+            )}
           </div>
           <button
             onClick={handleClassify}
@@ -951,6 +1264,7 @@ export default function ClaudeProjects() {
               onTodoToggle={handleTodoToggle}
               onTodoDelete={handleTodoDelete}
               onTodoAdd={handleTodoAdd}
+              onOpenDetail={(p) => setDetailProject({ ...p, costData: costs[p.id] || null })}
             />
           ))}
         </div>
@@ -1023,6 +1337,14 @@ export default function ClaudeProjects() {
         <AddProjectModal
           onSave={handleAddProject}
           onClose={() => setShowAddModal(false)}
+        />
+      )}
+
+      {/* Project Detail Modal */}
+      {detailProject && (
+        <ProjectDetailModal
+          project={detailProject}
+          onClose={() => setDetailProject(null)}
         />
       )}
     </div>

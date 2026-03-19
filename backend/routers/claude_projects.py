@@ -408,7 +408,7 @@ def _get_session_activity_from_db(db: Session) -> dict[str, dict]:
                 ClaudeSessionClassification.first_message.isnot(None),
             )
             .order_by(ClaudeSessionClassification.classified_at.desc())
-            .limit(3)
+            .limit(5)
             .all()
         )
         result[slug] = {
@@ -983,6 +983,18 @@ def get_claude_stats_summary(db: Session = Depends(get_db)):
         }
     except Exception:
         return {"total_sessions": 0, "active_projects": 0, "most_active_project": None, "most_active_sessions": 0}
+
+
+@router.get("/costs")
+def get_project_costs():
+    """Return per-project token usage and estimated cost from cached JSON."""
+    try:
+        costs_file = Path(os.path.dirname(__file__)).parent / "project_costs.json"
+        if not costs_file.exists():
+            return []
+        return json.loads(costs_file.read_text(encoding="utf-8"))
+    except Exception:
+        return []
 
 
 @router.get("/backlog", response_model=List[BacklogItem])
