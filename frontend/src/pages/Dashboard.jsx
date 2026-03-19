@@ -21,7 +21,7 @@ import {
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
 } from '@heroicons/react/24/outline'
-import { getDashboardSummary, getDashboardTimeline, getTopImprovements, getDashboardOverview } from '../api'
+import { getDashboardSummary, getDashboardTimeline, getTopImprovements, getDashboardOverview, getClaudeCosts } from '../api'
 
 ChartJS.register(
   CategoryScale,
@@ -98,21 +98,24 @@ export default function Dashboard() {
   const [timeline, setTimeline] = useState(null)
   const [topImprovements, setTopImprovements] = useState(null)
   const [overview, setOverview] = useState(null)
+  const [costData, setCostData] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [summaryData, timelineData, topData, overviewData] = await Promise.all([
+        const [summaryData, timelineData, topData, overviewData, costs] = await Promise.all([
           getDashboardSummary(),
           getDashboardTimeline(),
           getTopImprovements(),
           getDashboardOverview().catch(() => null),
+          getClaudeCosts().catch(() => []),
         ])
         setSummary(summaryData)
         setTimeline(timelineData)
         setTopImprovements(topData)
         setOverview(overviewData)
+        setCostData((costs || []).filter(c => c.estimated_cost > 0).slice(0, 10))
       } catch {
         setSummary(getDemoSummary())
         setTimeline(getDemoTimeline())
@@ -386,6 +389,61 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Cost per project */}
+      {costData.length > 0 && (
+        <div className="mb-8">
+          <div className="bg-slate-900 rounded-xl border border-slate-800/80 p-6">
+            <h3 className="text-sm font-semibold text-slate-300 mb-4">Cost by Project (Estimated)</h3>
+            <div className="h-64">
+              <Bar
+                data={{
+                  labels: costData.map(c => c.project.length > 20 ? c.project.slice(0, 20) + '...' : c.project),
+                  datasets: [{
+                    label: 'Cost ($)',
+                    data: costData.map(c => c.estimated_cost),
+                    backgroundColor: costData.map((_, i) => {
+                      const colors = [
+                        'rgba(249, 115, 22, 0.8)', 'rgba(59, 130, 246, 0.8)', 'rgba(16, 185, 129, 0.8)',
+                        'rgba(139, 92, 246, 0.8)', 'rgba(245, 158, 11, 0.8)', 'rgba(6, 182, 212, 0.8)',
+                        'rgba(239, 68, 68, 0.8)', 'rgba(34, 197, 94, 0.8)', 'rgba(168, 85, 247, 0.8)',
+                        'rgba(249, 115, 22, 0.6)',
+                      ]
+                      return colors[i % colors.length]
+                    }),
+                    borderRadius: 6,
+                    borderSkipped: false,
+                  }],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  indexAxis: 'y',
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                      padding: 12,
+                      cornerRadius: 8,
+                      callbacks: { label: (ctx) => `$${ctx.raw.toFixed(2)}` },
+                    },
+                  },
+                  scales: {
+                    x: {
+                      grid: { color: 'rgba(51, 65, 85, 0.5)' },
+                      ticks: { font: { family: 'Inter', size: 12 }, color: '#64748b', callback: (v) => `$${v}` },
+                    },
+                    y: {
+                      grid: { display: false },
+                      ticks: { font: { family: 'Inter', size: 11 }, color: '#94a3b8' },
+                    },
+                  },
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

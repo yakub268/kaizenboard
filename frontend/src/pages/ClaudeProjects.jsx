@@ -146,7 +146,7 @@ function TodoItem({ todo, onToggle, onDelete }) {
 
 // ─── Project card ──────────────────────────────────────────────────────────────
 
-function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoToggle, onTodoDelete, onTodoAdd, onOpenDetail }) {
+function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoToggle, onTodoDelete, onTodoAdd, onOpenDetail, onArchive }) {
   const [expanded, setExpanded] = useState(false)
   const [sessionsExpanded, setSessionsExpanded] = useState(false)
   const [fullSessions, setFullSessions] = useState(null)
@@ -435,19 +435,31 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
         </div>
       </div>
 
-      {projectPath && (
-        <button
-          data-no-nav="true"
-          onClick={handleResume}
-          className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-slate-400 bg-slate-800/60 hover:bg-orange-950/50 hover:text-orange-400 border border-slate-700/40 hover:border-orange-900/60 rounded-md transition-colors duration-150 cursor-pointer"
-        >
-          {copied ? (
-            <span className="text-emerald-400">Copied!</span>
-          ) : (
-            <><CommandLineIcon className="w-3.5 h-3.5" /> Resume in Claude</>
-          )}
-        </button>
-      )}
+      <div className="flex gap-2 mt-1">
+        {projectPath && (
+          <button
+            data-no-nav="true"
+            onClick={handleResume}
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-slate-400 bg-slate-800/60 hover:bg-orange-950/50 hover:text-orange-400 border border-slate-700/40 hover:border-orange-900/60 rounded-md transition-colors duration-150 cursor-pointer"
+          >
+            {copied ? (
+              <span className="text-emerald-400">Copied!</span>
+            ) : (
+              <><CommandLineIcon className="w-3.5 h-3.5" /> Resume in Claude</>
+            )}
+          </button>
+        )}
+        {project.source === 'registered' && onArchive && (
+          <button
+            data-no-nav="true"
+            onClick={(e) => { e.stopPropagation(); onArchive(project.id, project.name) }}
+            title="Remove project"
+            className="flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-500 bg-slate-800/60 hover:bg-red-950/50 hover:text-red-400 border border-slate-700/40 hover:border-red-900/60 rounded-md transition-colors duration-150 cursor-pointer"
+          >
+            <TrashIcon className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -1161,6 +1173,17 @@ export default function ClaudeProjects() {
     }
   }
 
+  async function handleArchive(slug, name) {
+    if (!confirm(`Remove "${name}" from Claude Projects?`)) return
+    try {
+      await unregisterClaudeProject(slug)
+      setProjects(prev => prev.filter(p => p.id !== slug))
+      showToast(`Removed "${name}"`)
+    } catch {
+      showToast('Failed to remove project', 'error')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1265,6 +1288,7 @@ export default function ClaudeProjects() {
               onTodoDelete={handleTodoDelete}
               onTodoAdd={handleTodoAdd}
               onOpenDetail={(p) => setDetailProject({ ...p, costData: costs[p.id] || null })}
+              onArchive={handleArchive}
             />
           ))}
         </div>
