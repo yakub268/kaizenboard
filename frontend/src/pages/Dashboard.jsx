@@ -320,7 +320,7 @@ export default function Dashboard() {
                       </td>
                       <td className="text-right py-3">
                         <span className={`inline-flex items-center text-sm font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {isPositive ? '' : '+'}{Math.abs(pct).toFixed(1)}%
+                          {isPositive ? '' : '-'}{Math.abs(pct).toFixed(1)}%
                         </span>
                       </td>
                     </tr>

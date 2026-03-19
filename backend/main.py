@@ -1,5 +1,13 @@
-from fastapi import FastAPI
+import logging
+import os
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
@@ -9,6 +17,8 @@ from models import Initiative, Metric, Activity, Todo, TimeEntry, ClaudeProjectT
 import models  # registers all models with Base
 
 from routers import initiatives, metrics, dashboard, claude_projects, work_projects
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="KaizenBoard API",
@@ -29,6 +39,15 @@ app.include_router(metrics.router)
 app.include_router(dashboard.router)
 app.include_router(claude_projects.router)
 app.include_router(work_projects.router)
+
+# Serve built React frontend
+_DIST = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist')
+if os.path.isdir(_DIST):
+    app.mount('/assets', StaticFiles(directory=os.path.join(_DIST, 'assets')), name='assets')
+
+    @app.get('/{full_path:path}', include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        return FileResponse(os.path.join(_DIST, 'index.html'))
 
 
 def _utcnow(offset_days: int = 0) -> datetime:
@@ -400,6 +419,36 @@ WORK_PROJECT_SEED = [
         ],
     },
     {
+        "title": "Mirror — Personal Behavioral Tracking",
+        "description": (
+            "Passive behavioral monitor running silently in the background. "
+            "Collects: active window titles every 5min, PowerShell command history every 15min, "
+            "browser visit history every 15min, Claude session transcripts daily. "
+            "All data stored in DuckDB at C:/Users/yakub/.mirror/behavior.db. "
+            "Phase 1 complete — collectors installed via Task Scheduler, 4700+ PS commands "
+            "and 352 Claude sessions already imported. "
+            "Phase 2 (pattern engine + advisor) unlocks after 1-2 weeks of activity data. "
+            "End goal: 'mirror ask' answers real behavioral questions backed by historical evidence."
+        ),
+        "status": StatusEnum.implement,
+        "priority": PriorityEnum.medium,
+        "phase": "Phase 1 Complete — collectors running, 4700+ PS cmds + 352 Claude sessions imported",
+        "path": r"C:\Users\yakub\.mirror",
+        "url": None,
+        "todos": [
+            "PHASE 2: Build analysis/pattern_engine.py — Claude analyzes DB weekly, extracts behavioral patterns (run after 2 weeks of data)",
+            "PHASE 2: Build analysis/advisor.py — makes 'mirror ask <question>' real with Claude-powered answers from DB",
+            "PHASE 2: Verify browser_visits table is populating — check after next full browser session (Chrome/Edge history path may need fix)",
+            "PHASE 3: Add 'mirror brief' command — morning summary with top patterns, focus time anomalies, decision reminders",
+            "PHASE 3 (optional): Wire Groq llama-3.2-vision for hourly screenshot analysis — free tier, already configured in stack",
+            "PHASE 4: Add /api/mirror/brief and /api/mirror/ask endpoints to JARVIS FastAPI backend (C:/Users/yakub/.jarvis/)",
+            "PHASE 4: Build standalone HTML behavioral dashboard — focus time charts, distraction trends, pattern history",
+            "ONGOING (2 weeks): Run first manual pattern analysis — python analysis/pattern_engine.py",
+            "ONGOING (1 month): Review activity_samples data quality, retune app_category classifier if needed",
+            "ONGOING: Add 'mirror log' habit — log at least 1 decision/day to build outcome tracking dataset",
+        ],
+    },
+    {
         "title": "Amazon AI / Cedric Integration",
         "description": (
             "Internal Amazon AI assistant (Cedric). Exploring integration of warehouse workflows "
@@ -528,8 +577,8 @@ def migrate_schema() -> None:
             try:
                 conn.execute(text(sql))
                 conn.commit()
-            except Exception:
-                pass  # Column already exists
+            except Exception as exc:
+                logger.debug("Schema migration skipped (column likely exists): %s", exc)
 
 
 def backfill_work_project_metadata(db: Session) -> None:

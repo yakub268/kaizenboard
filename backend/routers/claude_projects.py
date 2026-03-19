@@ -7,20 +7,22 @@ stats-cache.json, and syncs parsed projects into the Initiative table.
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import CategoryEnum, ClaudeProjectTodo, ClaudeTimeEntry, Initiative, PriorityEnum, StatusEnum
+from models import CategoryEnum, ClaudeProjectTodo, ClaudeRegisteredProject, ClaudeSessionClassification, ClaudeTimeEntry, Initiative, PriorityEnum, StatusEnum
 from schemas import (
     BacklogItem,
     ClaudeActiveTimer,
     ClaudeProject,
+    ClaudeProjectRegister,
     ClaudeProjectTodoCreate,
     ClaudeProjectTodoResponse,
     ClaudeTimeEntryResponse,
@@ -68,22 +70,354 @@ _PROJECT_MAP: dict[str, str] = {
     "trading bot": "Trading Bot",
     "jarvis": "JARVIS",
     "claude multi-agent": "Claude Multi-Agent Bridge",
+    "claude improvement": "Claude Improvement",
     "open source": "Open Source Contributions",
+    "mirror behavioral": "Mirror — Behavioral Tracking",
+    "mirror ": "Mirror — Behavioral Tracking",
+    "luna dementia": "Luna Dementia Companion",
+    "luna ": "Luna Dementia Companion",
+    "nuc (intel": "Luna Dementia Companion",
+    "kaizenboard": "KaizenBoard",
+    "mlb telegram": "MLB Alert System",
+    "mlb alert": "MLB Alert System",
 }
 
 _PROJECT_PATHS: dict[str, str] = {
     "JARVIS": r"C:/Users/yakub/.jarvis",
     "Trading Bot": r"C:/Users/yakub/Desktop/trading_bot",
     "Claude Multi-Agent Bridge": r"C:/Users/yakub/claude-multi-agent-bridge",
+    "Claude Improvement": r"C:/Users/yakub/claude-improvement",
     "Open Source Contributions": None,
+    "Mirror — Behavioral Tracking": r"C:/Users/yakub/.mirror",
+    "Luna Dementia Companion": r"C:/jarvis",
+    "KaizenBoard": r"C:/Users/yakub/kaizenboard",
+    "MLB Alert System": r"C:/Users/yakub/Desktop/trading_bot",
 }
 
 _PROJECT_URLS: dict[str, str] = {
     "JARVIS": "https://claude.ai/",
     "Trading Bot": "https://claude.ai/",
     "Claude Multi-Agent Bridge": "https://github.com/yakub268/claude-multi-agent-bridge",
+    "Claude Improvement": "https://claude.ai/",
     "Open Source Contributions": "https://github.com/yakub268",
+    "Mirror — Behavioral Tracking": "https://claude.ai/",
+    "Luna Dementia Companion": "https://claude.ai/",
+    "KaizenBoard": "https://claude.ai/",
+    "MLB Alert System": "https://claude.ai/",
 }
+
+# ── Code session scanning ──────────────────────────────────────────────────────
+
+_CODE_PROJECTS_DIR = Path(r"C:\Users\yakub\.claude\projects")
+
+# Map .claude/projects/ dir names → canonical project names
+_DIR_TO_PROJECT: dict[str, str] = {
+    "C--Users-yakub-Desktop-trading-bot": "Trading Bot",
+    "C--Users-yakub-Desktop-trading_bot": "Trading Bot",
+    "C--Users-yakub--jarvis": "JARVIS",
+    "C--Users-yakub-Desktop-good-first-issue": "Open Source Contributions",
+    "C--dev-projects-ai-orchestration-blueprint": "AI Orchestration Blueprint",
+    "C--dev-projects-claude-multi-agent-bridge": "Claude Multi-Agent Bridge",
+    "C--Users-yakub-Desktop-claude-multi-agent-bridge": "Claude Multi-Agent Bridge",
+    "C--Users-yakub--claude-skills-skill-creator-local": "Claude Improvement",
+    "C--Users-yakub-Desktop-kalshi-mcp": "Kalshi MCP",
+    "C--Users-yakub-Desktop-StellArts": "StellArts",
+    "C--Users-yakub-Desktop-AWS_Cloud_Practitioner_Study": "AWS Cloud Practitioner Study",
+    "C--Users-yakub-kaizenboard": "KaizenBoard",
+    "C--Users-yakub--mirror": "Mirror Behavioral Tracking",
+    "C--Users-yakub": "Claude Improvement",  # main workspace = Claude Code work
+    "C--": "Claude Improvement",
+}
+
+
+def _scan_code_sessions() -> dict[str, dict]:
+    """Return {project_slug: {code_sessions, code_last_session}} from .claude/projects dirs."""
+    result: dict[str, dict] = {}
+    if not _CODE_PROJECTS_DIR.exists():
+        return result
+    for proj_dir in _CODE_PROJECTS_DIR.iterdir():
+        if not proj_dir.is_dir():
+            continue
+        jsonls = list(proj_dir.glob("*.jsonl"))
+        if not jsonls:
+            continue
+        proj_name = _DIR_TO_PROJECT.get(proj_dir.name)
+        if not proj_name:
+            continue
+        slug = _project_slug(proj_name)
+        mtimes = [f.stat().st_mtime for f in jsonls]
+        last_dt = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).replace(tzinfo=None)
+        if slug in result:
+            result[slug]["code_sessions"] += len(jsonls)
+            if last_dt > result[slug]["code_last_session"]:
+                result[slug]["code_last_session"] = last_dt
+        else:
+            result[slug] = {"code_sessions": len(jsonls), "code_last_session": last_dt}
+    return result
+
+# ── Session classifier ────────────────────────────────────────────────────────
+
+_CLASSIFY_BATCH = 30   # sessions per LLM call
+
+# Keyword rules: first match wins. Ordered most-specific first.
+_KEYWORD_RULES: list[tuple[list[str], str]] = [
+    # Most specific first to avoid false positives
+    (["mirror behavioral", "behavioral tracking", "ps cmd history",
+      "powershell history collector", "phase 1 running", "phase 2 (pattern"], "Mirror — Behavioral Tracking"),
+    (["luna dementia", "dementia companion", "dementia ai", "brenda",
+      "qwen3", "nuc project", "memory care", "ai companion for mom",
+      "companion for mom"], "Luna Dementia Companion"),
+    (["multi-agent bridge", "claude bridge", "flask server port 5001",
+      "agent bridge", "cross-session"], "Claude Multi-Agent Bridge"),
+    (["mlb alert", "baseball betting", "mlb model", "sportsbook alert",
+      "mlb telegram"], "MLB Alert System"),
+    (["kalshi mcp", "kalshi-mcp", "kalshi prediction", "kalshi api"], "Kalshi MCP"),
+    (["autogpt pr", "anthropic cookbook", "open source pr",
+      "github pr #", "good-first-issue", "good first issue"], "Open Source Contributions"),
+    (["trading bot", "alpaca api", "fleet bot", "fleet_orchest", "kalshi bot",
+      "kelly criterion", "drawdown", "backtest", "vps deploy",
+      "bot performance", "trading strategy", "prediction market bot",
+      "integrate the alpaca", "scrapes earnings", "how are the trading bots",
+      "are the bots doing"], "Trading Bot"),
+    (["jarvis", "start-jarvis", "jarvis project", "jarvis companion",
+      "full audit of the jarvis", ".jarvis"], "JARVIS"),
+    (["kaizenboard", "kaizen board", "session classifier", "session classification",
+      "classify session", "claude projects page on the kaizen"], "KaizenBoard"),
+    (["ai orchestration", "orchestration blueprint", "chatgpt > claude",
+      "semgrep scan"], "AI Orchestration Blueprint"),
+    (["stellarts", "stell arts"], "StellArts"),
+    (["aws cloud practitioner", "aws certification", "cloud practitioner study"], "AWS Cloud Practitioner Study"),
+    (["ddv5", "warehouse system", "dwelling time", "warehouse dashboard",
+      "labor board", "package count", "scc download", "warehouse cluster"], "DDV5 Warehouse System"),
+    (["claude code feature", "mcp server setup", "claude plugin",
+      "claude hook", "claude desktop project", "slash command",
+      "agent sdk", "claude improvement", "claude tools hub",
+      "skills eval", "prompt-quality skill", "mentor-mode skill"], "Claude Improvement"),
+]
+
+
+def _keyword_classify(message: str) -> Optional[str]:
+    """Fast free classification via keyword matching. Returns project name or None."""
+    lower = message.lower()
+    for keywords, project in _KEYWORD_RULES:
+        if any(kw in lower for kw in keywords):
+            return project
+    return None
+
+
+def _extract_first_user_message(jsonl_path: Path) -> Optional[str]:
+    """Read the first substantive user message from a session JSONL."""
+    try:
+        with jsonl_path.open("r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                if obj.get("type") != "user":
+                    continue
+                msg = obj.get("message", {})
+                content = msg.get("content", "")
+                text = ""
+                if isinstance(content, list):
+                    for part in content:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            text = part["text"].strip()
+                            break
+                elif isinstance(content, str):
+                    text = content.strip()
+                if len(text) >= 15:
+                    return text[:600]
+    except Exception:
+        pass
+    return None
+
+
+def _classify_batch_with_groq(sessions: list[dict], project_names: list[str]) -> list[dict]:
+    """
+    Free fallback: send ambiguous sessions to Groq (llama-3.3-70b, free tier).
+    sessions: [{"id": str, "dir": str, "message": str}]
+    Returns: [{"n": int, "project": str, "conf": float}]
+    """
+    from openai import OpenAI
+
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return []
+
+    proj_list = ", ".join(f'"{p}"' for p in project_names) + ', "Other/Unknown"'
+    numbered = "\n".join(
+        f'{i+1}. [{s["dir"]}] {s["message"][:300]}'
+        for i, s in enumerate(sessions)
+    )
+    prompt = f"""Classify each Claude Code session into exactly one project based on the first user message. Projects: {proj_list}
+
+Sessions:
+{numbered}
+
+Respond ONLY with a JSON array, one object per session, in order:
+[{{"n":1,"project":"Trading Bot","conf":0.95}}, ...]
+
+Use "Other/Unknown" when genuinely unclear. conf is 0.0-1.0."""
+
+    client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+    try:
+        resp = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.choices[0].message.content.strip()
+        raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.MULTILINE).strip()
+        return json.loads(raw)
+    except Exception:
+        return []
+
+
+def classify_new_sessions(db: Session) -> dict:
+    """
+    Scan all JSONL files, classify unclassified ones with Haiku, store results.
+    Returns {"classified": int, "skipped": int, "total_new": int}
+    """
+    # Get all known project names from DB-backed + memory projects
+    all_projects = _parse_projects()
+    registered = db.query(ClaudeRegisteredProject).all()
+    project_names = list({p.name for p in all_projects} | {r.name for r in registered})
+
+    # Build set of already-classified session IDs
+    known_ids = {
+        row.session_id
+        for row in db.query(ClaudeSessionClassification.session_id).all()
+    }
+
+    # Collect unclassified sessions
+    unclassified: list[dict] = []
+    if _CODE_PROJECTS_DIR.exists():
+        for proj_dir in _CODE_PROJECTS_DIR.iterdir():
+            if not proj_dir.is_dir():
+                continue
+            for jsonl in proj_dir.glob("*.jsonl"):
+                sid = jsonl.stem
+                if sid in known_ids:
+                    continue
+                msg = _extract_first_user_message(jsonl)
+                if not msg:
+                    # Store as unclassifiable so we don't retry forever
+                    db.add(ClaudeSessionClassification(
+                        session_id=sid,
+                        project_dir=proj_dir.name,
+                        project_slug=None,
+                        project_name=None,
+                        first_message=None,
+                        confidence=0.0,
+                        classified_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                    ))
+                    continue
+                unclassified.append({"id": sid, "dir": proj_dir.name, "message": msg})
+
+    total_new = len(unclassified)
+    classified_count = 0
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Pass 1: keyword matching (free, instant)
+    needs_llm: list[dict] = []
+    for sess in unclassified:
+        proj_name = _keyword_classify(sess["message"])
+        if proj_name:
+            slug = _project_slug(proj_name)
+            db.add(ClaudeSessionClassification(
+                session_id=sess["id"],
+                project_dir=sess["dir"],
+                project_slug=slug,
+                project_name=proj_name,
+                first_message=sess["message"][:400],
+                confidence=0.85,
+                classified_at=now,
+            ))
+            classified_count += 1
+        else:
+            needs_llm.append(sess)
+
+    # Pass 2: Groq (free tier) for ambiguous sessions
+    for i in range(0, len(needs_llm), _CLASSIFY_BATCH):
+        batch = needs_llm[i : i + _CLASSIFY_BATCH]
+        results = _classify_batch_with_groq(batch, project_names)
+
+        # If Groq failed, leave sessions unclassified so they retry next time
+        if not results:
+            continue
+
+        result_map = {r["n"]: r for r in results if isinstance(r, dict)}
+        for j, sess in enumerate(batch):
+            r = result_map.get(j + 1, {})
+            if not r:
+                continue
+            proj_name = r.get("project") or None
+            if proj_name == "Other/Unknown":
+                proj_name = None
+            slug = _project_slug(proj_name) if proj_name else None
+            conf = float(r.get("conf", 0.0))
+            db.add(ClaudeSessionClassification(
+                session_id=sess["id"],
+                project_dir=sess["dir"],
+                project_slug=slug,
+                project_name=proj_name,
+                first_message=sess["message"][:400],
+                confidence=conf,
+                classified_at=now,
+            ))
+            if proj_name:
+                classified_count += 1
+
+    db.commit()
+    return {
+        "classified": classified_count,
+        "keyword_matched": total_new - len(needs_llm),
+        "llm_sent": len(needs_llm),
+        "skipped": total_new - classified_count,
+        "total_new": total_new,
+    }
+
+
+def _get_session_activity_from_db(db: Session) -> dict[str, dict]:
+    """
+    Return {project_slug: {code_sessions, code_last_session, recent_topics}} from DB.
+    Falls back to dir-scan for sessions not yet classified.
+    """
+    from sqlalchemy import func
+
+    rows = (
+        db.query(
+            ClaudeSessionClassification.project_slug,
+            func.count(ClaudeSessionClassification.id).label("cnt"),
+            func.max(ClaudeSessionClassification.classified_at).label("last"),
+        )
+        .filter(ClaudeSessionClassification.project_slug.isnot(None))
+        .group_by(ClaudeSessionClassification.project_slug)
+        .all()
+    )
+
+    result: dict[str, dict] = {}
+    for row in rows:
+        slug = row.project_slug
+        # Get last 3 session topics for this project
+        recent = (
+            db.query(ClaudeSessionClassification.first_message, ClaudeSessionClassification.classified_at)
+            .filter(
+                ClaudeSessionClassification.project_slug == slug,
+                ClaudeSessionClassification.first_message.isnot(None),
+            )
+            .order_by(ClaudeSessionClassification.classified_at.desc())
+            .limit(3)
+            .all()
+        )
+        result[slug] = {
+            "code_sessions": row.cnt,
+            "code_last_session": row.last,
+            "recent_topics": [r.first_message[:120] for r in recent],
+        }
+    return result
+
 
 _DATE_RE = re.compile(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}")
 
@@ -127,30 +461,40 @@ def _extract_date(header: str) -> Optional[str]:
     return m.group(0) if m else None
 
 
+_MD_BOLD_RE = re.compile(r"\*{1,3}")
+
+
+def _strip_md(text: str) -> str:
+    """Strip markdown bold/italic markers."""
+    return _MD_BOLD_RE.sub("", text).strip()
+
+
 def _body_to_notes(body: str) -> list[str]:
     notes = []
     for line in body.splitlines():
         line = line.strip()
         if line.startswith(("-", "*", "+")):
-            notes.append(line.lstrip("-*+ ").strip())
+            notes.append(_strip_md(line.lstrip("-*+ ")))
         elif line.startswith("**") and "**:" in line:
-            # bold key-value lines e.g. **Phase 9 Priority A — DONE**:
-            notes.append(line.strip("*").strip())
+            notes.append(_strip_md(line))
     return [n for n in notes if n]
 
 
 def _infer_status(header: str, body: str) -> str:
-    combined = (header + " " + body).lower()
-    if "backlog" in combined or "deferred" in combined or "paused" in combined:
+    # Only mark deferred if the section *header* says so — not body content
+    header_lower = header.lower()
+    if "backlog" in header_lower or "deferred" in header_lower:
         return "deferred"
-    if "complete" in combined or "done" in combined or "launched" in combined:
-        return "active"  # still active / being used; "done" means a phase is done
+    # Body: only flag deferred if an explicit whole-project deferral phrase appears
+    body_lower = body.lower()
+    if "monetization paused" in body_lower or "intentionally deferred" in body_lower:
+        return "deferred"
     return "active"
 
 
 def _infer_phase(header: str, body: str) -> Optional[str]:
     """Pull phase mentions from header or first few lines of body."""
-    phase_re = re.compile(r"phase\s+\d+[^,.\n]*", re.IGNORECASE)
+    phase_re = re.compile(r"phase\s+\d+[^,.()\n]*", re.IGNORECASE)
     # prefer header
     m = phase_re.search(header)
     if m:
@@ -220,6 +564,7 @@ def _parse_backlog() -> list[BacklogItem]:
                     continue
                 text = line.lstrip("-*+ ").strip()
                 # split on " — " or " - " to extract reason
+                text = _strip_md(text)
                 parts = re.split(r"\s[—\-]\s", text, maxsplit=1)
                 if len(parts) == 2:
                     items.append(BacklogItem(text=parts[0].strip(), reason=parts[1].strip()))
@@ -240,9 +585,40 @@ def _status_to_initiative_status(project_status: str) -> StatusEnum:
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
+def _registered_to_claude_project(r: ClaudeRegisteredProject) -> ClaudeProject:
+    import json as _json
+    notes = []
+    if r.notes_json:
+        try:
+            notes = _json.loads(r.notes_json)
+        except Exception:
+            pass
+    return ClaudeProject(
+        id=r.slug,
+        name=r.name,
+        status=r.status,
+        phase=r.phase,
+        last_updated=r.updated_at.strftime("%b %d, %Y") if r.updated_at else None,
+        notes=notes,
+        section_header=r.name,
+        claude_url=r.claude_url,
+        project_path=r.project_path,
+        source="registered",
+    )
+
+
 @router.get("/projects", response_model=List[ClaudeProject])
 def list_claude_projects(db: Session = Depends(get_db)) -> List[ClaudeProject]:
     projects = _parse_projects()
+    code_activity = _scan_code_sessions()
+
+    # Merge in manually registered projects (don't overwrite MEMORY.md ones)
+    memory_slugs = {p.id for p in projects}
+    registered = db.query(ClaudeRegisteredProject).all()
+    for r in registered:
+        if r.slug not in memory_slugs:
+            projects.append(_registered_to_claude_project(r))
+
     slugs = [p.id for p in projects]
     todos_all = (
         db.query(ClaudeProjectTodo)
@@ -255,9 +631,17 @@ def list_claude_projects(db: Session = Depends(get_db)) -> List[ClaudeProject]:
         todos_map.setdefault(t.project_slug, []).append(
             ClaudeProjectTodoResponse.model_validate(t)
         )
+    # Prefer DB-classified activity; fall back to dir-scan if DB is empty
+    db_activity = _get_session_activity_from_db(db)
+    activity = db_activity if db_activity else code_activity
+
     for p in projects:
         p.todos = todos_map.get(p.id, [])
         p.time_summary = _build_claude_time_summary(db, p.id)
+        if p.id in activity:
+            p.code_sessions = activity[p.id]["code_sessions"]
+            p.code_last_session = activity[p.id]["code_last_session"]
+            p.recent_topics = activity[p.id].get("recent_topics", [])
     return projects
 
 
@@ -361,8 +745,31 @@ def get_session_stats() -> SessionStats:
     )
 
 
+@router.post("/classify", status_code=200)
+def classify_sessions(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """
+    Classify all unclassified Claude Code sessions using Haiku.
+    Runs in the background — returns immediately with a count of pending sessions.
+    """
+    # Count unclassified first so we can return immediately
+    known_ids = {row.session_id for row in db.query(ClaudeSessionClassification.session_id).all()}
+    pending = 0
+    if _CODE_PROJECTS_DIR.exists():
+        for proj_dir in _CODE_PROJECTS_DIR.iterdir():
+            if proj_dir.is_dir():
+                pending += sum(1 for j in proj_dir.glob("*.jsonl") if j.stem not in known_ids)
+
+    def _run(db_session: Session):
+        result = classify_new_sessions(db_session)
+        db_session.close()
+
+    from database import SessionLocal
+    background_tasks.add_task(_run, SessionLocal())
+    return {"status": "started", "pending_sessions": pending}
+
+
 @router.post("/sync", response_model=SyncResult)
-def sync_projects(db: Session = Depends(get_db)) -> SyncResult:
+def sync_projects(background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> SyncResult:
     projects = _parse_projects()
     created = 0
     updated = 0
@@ -406,6 +813,11 @@ def sync_projects(db: Session = Depends(get_db)) -> SyncResult:
         synced_names.append(proj.name)
 
     db.commit()
+
+    # Kick off background classification of any new sessions
+    from database import SessionLocal
+    background_tasks.add_task(classify_new_sessions, SessionLocal())
+
     return SyncResult(created=created, updated=updated, projects=synced_names)
 
 
@@ -462,6 +874,115 @@ def get_claude_active_timer(db: Session = Depends(get_db)):
 @router.get("/time/{slug}/summary", response_model=ClaudeTimeSummary)
 def get_claude_time_summary(slug: str, db: Session = Depends(get_db)):
     return _build_claude_time_summary(db, slug)
+
+
+@router.post("/projects/register", response_model=ClaudeProject, status_code=201)
+def register_project(payload: ClaudeProjectRegister, db: Session = Depends(get_db)):
+    import json as _json
+    slug = _project_slug(payload.name)
+    existing = db.query(ClaudeRegisteredProject).filter(ClaudeRegisteredProject.slug == slug).first()
+    now = _utcnow()
+    if existing:
+        existing.name = payload.name
+        existing.status = payload.status
+        existing.phase = payload.phase
+        existing.notes_json = _json.dumps(payload.notes)
+        existing.claude_url = payload.claude_url
+        existing.project_path = payload.project_path
+        existing.updated_at = now
+        db.commit()
+        db.refresh(existing)
+        return _registered_to_claude_project(existing)
+    reg = ClaudeRegisteredProject(
+        slug=slug,
+        name=payload.name,
+        status=payload.status,
+        phase=payload.phase,
+        notes_json=_json.dumps(payload.notes),
+        claude_url=payload.claude_url,
+        project_path=payload.project_path,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(reg)
+    db.commit()
+    db.refresh(reg)
+    return _registered_to_claude_project(reg)
+
+
+@router.delete("/projects/register/{slug}", status_code=204)
+def unregister_project(slug: str, db: Session = Depends(get_db)):
+    reg = db.query(ClaudeRegisteredProject).filter(ClaudeRegisteredProject.slug == slug).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Registered project not found")
+    db.delete(reg)
+    db.commit()
+
+
+@router.get("/projects/{slug}/sessions")
+def get_project_sessions(slug: str, limit: int = 10, db: Session = Depends(get_db)):
+    """Return classified sessions for a project, most recent first."""
+    try:
+        rows = (
+            db.query(ClaudeSessionClassification)
+            .filter(
+                ClaudeSessionClassification.project_slug == slug,
+                ClaudeSessionClassification.first_message.isnot(None),
+            )
+            .order_by(ClaudeSessionClassification.classified_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "session_id": r.session_id,
+                "first_message": r.first_message,
+                "confidence": r.confidence,
+                "classified_at": r.classified_at.isoformat() if r.classified_at else None,
+            }
+            for r in rows
+        ]
+    except Exception:
+        return []
+
+
+@router.get("/stats/summary")
+def get_claude_stats_summary(db: Session = Depends(get_db)):
+    """Aggregate stats for dashboard: total sessions, projects, most active project."""
+    try:
+        from sqlalchemy import func
+
+        total_sessions = (
+            db.query(func.count(ClaudeSessionClassification.id))
+            .filter(ClaudeSessionClassification.project_slug.isnot(None))
+            .scalar()
+        ) or 0
+
+        project_count = (
+            db.query(func.count(func.distinct(ClaudeSessionClassification.project_slug)))
+            .filter(ClaudeSessionClassification.project_slug.isnot(None))
+            .scalar()
+        ) or 0
+
+        most_active = (
+            db.query(
+                ClaudeSessionClassification.project_name,
+                func.count(ClaudeSessionClassification.id).label("cnt"),
+            )
+            .filter(ClaudeSessionClassification.project_slug.isnot(None))
+            .group_by(ClaudeSessionClassification.project_name)
+            .order_by(func.count(ClaudeSessionClassification.id).desc())
+            .first()
+        )
+
+        return {
+            "total_sessions": total_sessions,
+            "active_projects": project_count,
+            "most_active_project": most_active[0] if most_active else None,
+            "most_active_sessions": most_active[1] if most_active else 0,
+        }
+    except Exception:
+        return {"total_sessions": 0, "active_projects": 0, "most_active_project": None, "most_active_sessions": 0}
 
 
 @router.get("/backlog", response_model=List[BacklogItem])

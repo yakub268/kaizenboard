@@ -241,9 +241,34 @@ def list_work_projects(
         .all()
     )
 
+    # Batch-load all time entries (avoids N+1 — one query instead of one per project)
+    initiative_ids = [i.id for i in initiatives]
+    all_entries = (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.initiative_id.in_(initiative_ids),
+            TimeEntry.duration_seconds.isnot(None),
+        )
+        .all()
+    )
+    entries_by_id: dict[int, list] = defaultdict(list)
+    for e in all_entries:
+        entries_by_id[e.initiative_id].append(e)
+
+    def _build_summary_from_entries(initiative_id: int) -> TimeEntrySummary:
+        entries = entries_by_id[initiative_id]
+        total_seconds = sum(e.duration_seconds for e in entries if e.duration_seconds)
+        last_session = max((e.end_time for e in entries if e.end_time), default=None)
+        return TimeEntrySummary(
+            initiative_id=initiative_id,
+            total_seconds=total_seconds,
+            session_count=len(entries),
+            last_session=last_session,
+        )
+
     results = []
     for initiative in initiatives:
-        summary = _build_time_summary(db, initiative.id)
+        summary = _build_summary_from_entries(initiative.id)
         project = WorkProjectResponse(
             id=initiative.id,
             title=initiative.title,

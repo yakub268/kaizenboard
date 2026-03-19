@@ -101,12 +101,14 @@ def get_timeline(db: Session = Depends(get_db)) -> List[TimelineEntry]:
         month_key = initiative.completed_date.strftime("%Y-%m")
         counts[month_key] += 1
 
-    # Generate all 12 months even if zero
+    # Generate all 12 months even if zero (proper month arithmetic, no timedelta drift)
     result: list[TimelineEntry] = []
     now = _utcnow()
     for i in range(11, -1, -1):
-        month_dt = now.replace(day=1) - timedelta(days=i * 30)
-        key = month_dt.strftime("%Y-%m")
+        raw_month = now.month - i
+        year = now.year + (raw_month - 1) // 12
+        month = ((raw_month - 1) % 12) + 1
+        key = f"{year}-{month:02d}"
         result.append(TimelineEntry(month=key, completed=counts.get(key, 0)))
 
     return result
@@ -129,9 +131,16 @@ def get_top_improvements(db: Session = Depends(get_db)) -> List[TopImprovement]:
     scored.sort(key=lambda x: x[0], reverse=True)
     top10 = scored[:10]
 
+    # Batch-load all parent initiatives (avoids N+1)
+    initiative_ids = [m.initiative_id for _, m in top10]
+    initiatives_map = {
+        i.id: i
+        for i in db.query(Initiative).filter(Initiative.id.in_(initiative_ids)).all()
+    }
+
     result: list[TopImprovement] = []
     for pct, m in top10:
-        initiative = db.query(Initiative).filter(Initiative.id == m.initiative_id).first()
+        initiative = initiatives_map.get(m.initiative_id)
         if not initiative:
             continue
         result.append(

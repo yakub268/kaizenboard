@@ -47,10 +47,10 @@ export function updateInitiative(id, data) {
   });
 }
 
-export function updateStatus(id, status) {
+export function updateStatus(id, status, user = 'user') {
   return request(`/initiatives/${id}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, user }),
   });
 }
 
@@ -141,6 +141,22 @@ export function getClaudeActiveTimer() {
 }
 export function getClaudeTimeSummary(slug) {
   return request(`/claude/time/${slug}/summary`);
+}
+
+export function registerClaudeProject(data) {
+  return request('/claude/projects/register', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function unregisterClaudeProject(slug) {
+  return request(`/claude/projects/register/${slug}`, { method: 'DELETE' });
+}
+
+export function getClaudeProjectSessions(slug, limit = 10) {
+  return request(`/claude/projects/${slug}/sessions?limit=${limit}`);
+}
+
+export function getClaudeStatsSummary() {
+  return request('/claude/stats/summary');
 }
 
 // Work Projects

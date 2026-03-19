@@ -78,7 +78,7 @@ def update_metric(
     after = metric.after_value
     before = metric.before_value
     details_parts = [f"Metric '{metric.name}' updated."]
-    if after is not None and before:
+    if after is not None and before is not None and before != 0:
         pct = round((before - after) / abs(before) * 100, 1)
         details_parts.append(f"Improvement: {pct}% ({before} → {after} {metric.unit or ''}).")
 

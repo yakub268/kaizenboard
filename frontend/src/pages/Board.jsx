@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   MagnifyingGlassIcon,
   FunnelIcon,
@@ -92,8 +92,9 @@ function InitiativeCard({ initiative, onMove, onClick, onDelete }) {
   const categoryColor = CATEGORY_COLORS[initiative.category] || CATEGORY_COLORS.other
   const categoryLabel = CATEGORY_LABELS[initiative.category] || initiative.category
   const priorityColor = PRIORITY_INDICATORS[initiative.priority] || PRIORITY_INDICATORS.medium
-  const days = daysSince(initiative.created_at)
-  const stale = staleness(initiative.created_at)
+  const staleDate = initiative.updated_at || initiative.created_at
+  const days = daysSince(staleDate)
+  const stale = staleness(staleDate)
   const currentIdx = STATUSES.indexOf(initiative.status)
   const nextStatus = currentIdx < STATUSES.length - 1 ? STATUSES[currentIdx + 1] : null
   const metricCount = initiative.metrics?.length || 0
@@ -217,10 +218,11 @@ function InitiativeCard({ initiative, onMove, onClick, onDelete }) {
 
 export default function Board() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [initiatives, setInitiatives] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState(() => searchParams.get('category') || '')
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState(null)
 
@@ -348,7 +350,12 @@ export default function Board() {
           <FunnelIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value
+              setCategoryFilter(val)
+              if (val) setSearchParams({ category: val })
+              else setSearchParams({})
+            }}
             className="pl-9 pr-8 py-2 bg-slate-900 border border-slate-700/60 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 appearance-none cursor-pointer"
           >
             <option value="">All Categories</option>

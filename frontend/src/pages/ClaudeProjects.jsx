@@ -26,6 +26,8 @@ import {
   startClaudeTimer,
   stopClaudeTimer,
   getClaudeActiveTimer,
+  registerClaudeProject,
+  unregisterClaudeProject,
 } from '../api'
 
 // ─── Status badge ──────────────────────────────────────────────────────────────
@@ -171,6 +173,7 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
   }
 
   const notes = project.notes || []
+  const recentTopics = project.recent_topics || []
   const visibleNotes = expanded ? notes : notes.slice(0, 3)
   const hasMore = notes.length > 3
 
@@ -278,6 +281,21 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
         </button>
       )}
 
+      {/* ── Recent sessions ── */}
+      {recentTopics.length > 0 && (
+        <div className="border-t border-slate-800/50 pt-3">
+          <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-1.5">Recent Sessions</p>
+          <ul className="space-y-1">
+            {recentTopics.map((topic, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-slate-500">
+                <CommandLineIcon className="w-3 h-3 mt-0.5 flex-shrink-0 text-blue-600" />
+                <span className="leading-relaxed line-clamp-2">{topic}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* ── Checklist ── */}
       <div className="flex flex-col gap-0.5 border-t border-slate-800/50 pt-3" data-no-nav="true" onClick={(e) => e.stopPropagation()}>
         {totalCount > 0 && (
@@ -319,16 +337,33 @@ function ProjectCard({ project, activeTimer, onTimerStart, onTimerStop, onTodoTo
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-1 border-t border-slate-800/40">
+      <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/40 flex-wrap">
         {project.lastUpdated && (
           <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
             <CalendarDaysIcon className="w-3 h-3" />
             <span>Updated {formatDate(project.lastUpdated)}</span>
           </div>
         )}
-        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-slate-800 text-slate-500 rounded-md ring-1 ring-inset ring-slate-700/50 ml-auto">
-          Claude AI
-        </span>
+        <div className="flex items-center gap-1.5 ml-auto flex-wrap justify-end">
+          {project.code_sessions > 0 && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-blue-950/60 text-blue-400 rounded-md ring-1 ring-inset ring-blue-800/50">
+              <CommandLineIcon className="w-2.5 h-2.5" />
+              {project.code_sessions} code sessions
+            </span>
+          )}
+          {project.code_last_session && (
+            <span className="text-[10px] text-slate-600">
+              last {formatDate(project.code_last_session)}
+            </span>
+          )}
+          <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-md ring-1 ring-inset ${
+            project.source === 'registered'
+              ? 'bg-purple-950/60 text-purple-400 ring-purple-800/50'
+              : 'bg-slate-800 text-slate-500 ring-slate-700/50'
+          }`}>
+            {project.source === 'registered' ? 'Manual' : 'Memory'}
+          </span>
+        </div>
       </div>
 
       {projectPath && (
@@ -423,6 +458,86 @@ function Toast({ message, type, onDismiss }) {
   return (
     <div className={`${base} ${style}`}>
       {message}
+    </div>
+  )
+}
+
+// ─── Add Project Modal ────────────────────────────────────────────────────────
+
+function AddProjectModal({ onSave, onClose }) {
+  const [form, setForm] = useState({
+    name: '', status: 'active', phase: '', claude_url: '', project_path: '', notes: ''
+  })
+  const [saving, setSaving] = useState(false)
+
+  function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
+
+  async function handleSave() {
+    if (!form.name.trim()) return
+    setSaving(true)
+    try {
+      const notes = form.notes.trim()
+        ? form.notes.split('\n').map(l => l.replace(/^[-*+]\s*/, '').trim()).filter(Boolean)
+        : []
+      await onSave({
+        name: form.name.trim(),
+        status: form.status,
+        phase: form.phase.trim() || null,
+        claude_url: form.claude_url.trim() || null,
+        project_path: form.project_path.trim() || null,
+        notes,
+      })
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-slate-900 border border-slate-700/60 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <h2 className="text-base font-semibold text-slate-100 mb-4">Add Desktop Project</h2>
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Project name *</label>
+            <input className="w-full bg-slate-800 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-orange-500/60"
+              value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Mirror — Behavioral Tracking" />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-xs text-slate-500 mb-1">Status</label>
+              <select className="w-full bg-slate-800 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-orange-500/60"
+                value={form.status} onChange={e => set('status', e.target.value)}>
+                <option value="active">Active</option>
+                <option value="deferred">Deferred</option>
+                <option value="complete">Complete</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Current phase / focus (optional)</label>
+            <input className="w-full bg-slate-800 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-orange-500/60"
+              value={form.phase} onChange={e => set('phase', e.target.value)} placeholder="e.g. Phase 3 — pattern engine" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Local path (optional)</label>
+            <input className="w-full bg-slate-800 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-orange-500/60"
+              value={form.project_path} onChange={e => set('project_path', e.target.value)} placeholder="C:/Users/yakub/..." />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Notes (one per line, optional)</label>
+            <textarea rows={3} className="w-full bg-slate-800 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-orange-500/60 resize-none"
+              value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="- Key fact about this project&#10;- Next milestone" />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-3 mt-5">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors cursor-pointer">Cancel</button>
+          <button onClick={handleSave} disabled={saving || !form.name.trim()}
+            className="px-4 py-2 text-sm font-medium bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+            {saving ? 'Saving...' : 'Add Project'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -556,6 +671,8 @@ export default function ClaudeProjects() {
   const [syncing, setSyncing] = useState(false)
   const [toast, setToast] = useState(null)
   const [activeClaudeTimer, setActiveClaudeTimer] = useState(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [classifying, setClassifying] = useState(false)
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type })
@@ -634,6 +751,36 @@ export default function ClaudeProjects() {
       showToast('Sync failed — using cached data', 'error')
     } finally {
       setSyncing(false)
+    }
+  }
+
+  async function handleAddProject(data) {
+    const created = await registerClaudeProject(data)
+    setProjects(prev => [...prev, { ...created, todos: [], time_summary: null }])
+    showToast(`Added "${created.name}"`)
+  }
+
+  async function handleClassify() {
+    setClassifying(true)
+    try {
+      const r = await fetch('/api/claude/classify', { method: 'POST' })
+      const d = await r.json()
+      showToast(`Classifying ${d.pending_sessions} sessions in background — refresh in ~30s`)
+      // Poll until done, then refresh
+      const poll = setInterval(async () => {
+        const check = await fetch('/api/claude/classify', { method: 'POST' })
+        const cd = await check.json()
+        if (cd.pending_sessions === 0) {
+          clearInterval(poll)
+          setClassifying(false)
+          await fetchAll()
+          showToast('Classification complete — session topics updated')
+        }
+      }, 8000)
+      setTimeout(() => { clearInterval(poll); setClassifying(false) }, 120000)
+    } catch {
+      showToast('Classification failed', 'error')
+      setClassifying(false)
     }
   }
 
@@ -717,9 +864,9 @@ export default function ClaudeProjects() {
     )
   }
 
-  const activeProjects  = projects.filter((p) => p.status === 'Active')
-  const otherProjects   = projects.filter((p) => p.status !== 'Active')
-  const allProjects     = [...activeProjects, ...otherProjects]
+  const allProjects = [...projects].sort((a, b) =>
+    a.status === 'Active' && b.status !== 'Active' ? -1 : b.status === 'Active' && a.status !== 'Active' ? 1 : 0
+  )
 
   const completedTotal = projects.reduce((n, p) => n + (p.todos || []).filter((t) => t.completed).length, 0)
   const todoTotal      = projects.reduce((n, p) => n + (p.todos || []).length, 0)
@@ -755,6 +902,22 @@ export default function ClaudeProjects() {
               </div>
             )}
           </div>
+          <button
+            onClick={handleClassify}
+            disabled={classifying}
+            title="Classify all Claude Code sessions by project using AI"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-400 hover:text-blue-300 text-sm font-medium rounded-lg transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <SparklesIcon className={`w-4 h-4 ${classifying ? 'animate-pulse' : ''}`} />
+            {classifying ? 'Classifying...' : 'Classify Sessions'}
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-orange-400 hover:text-orange-300 text-sm font-medium rounded-lg transition-colors duration-150 cursor-pointer"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Add Project
+          </button>
           <button
             onClick={handleSync}
             disabled={syncing}
@@ -852,6 +1015,14 @@ export default function ClaudeProjects() {
           message={toast.message}
           type={toast.type}
           onDismiss={() => setToast(null)}
+        />
+      )}
+
+      {/* Add Project Modal */}
+      {showAddModal && (
+        <AddProjectModal
+          onSave={handleAddProject}
+          onClose={() => setShowAddModal(false)}
         />
       )}
     </div>

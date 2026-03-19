@@ -171,3 +171,33 @@ class ClaudeTimeEntry(Base):
     end_time = Column(DateTime, nullable=True)
     duration_seconds = Column(Integer, nullable=True)
     notes = Column(String(500), nullable=True)
+
+
+class ClaudeSessionClassification(Base):
+    """LLM-classified project attribution for each Claude Code session."""
+    __tablename__ = "claude_session_classifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(100), nullable=False, unique=True, index=True)
+    project_dir = Column(String(200), nullable=False)   # e.g. "C--Users-yakub"
+    project_slug = Column(String(100), nullable=True)   # null = unknown/unclassifiable
+    project_name = Column(String(255), nullable=True)
+    first_message = Column(Text, nullable=True)         # preview stored for debugging
+    confidence = Column(Float, nullable=True)
+    classified_at = Column(DateTime, nullable=False, default=utcnow)
+
+
+class ClaudeRegisteredProject(Base):
+    """Manually registered projects (Desktop-only or not in MEMORY.md)."""
+    __tablename__ = "claude_registered_projects"
+
+    id = Column(Integer, primary_key=True, index=True)
+    slug = Column(String(100), nullable=False, unique=True, index=True)
+    name = Column(String(255), nullable=False)
+    status = Column(String(50), default="active")
+    phase = Column(String(255), nullable=True)
+    notes_json = Column(Text, nullable=True)   # JSON list of strings
+    claude_url = Column(String(500), nullable=True)
+    project_path = Column(String(500), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow)

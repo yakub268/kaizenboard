@@ -210,6 +210,21 @@ class ClaudeProject(BaseModel):
     project_path: Optional[str] = None  # local path for resume command
     todos: List[ClaudeProjectTodoResponse] = []
     time_summary: Optional[ClaudeTimeSummary] = None
+    # Code session activity (from DB classification or dir scan)
+    code_sessions: Optional[int] = None
+    code_last_session: Optional[datetime] = None
+    recent_topics: List[str] = []
+    # Source: "memory" = auto-detected from MEMORY.md, "registered" = manually added
+    source: str = "memory"
+
+
+class ClaudeProjectRegister(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    status: str = "active"
+    phase: Optional[str] = None
+    notes: List[str] = []
+    claude_url: Optional[str] = None
+    project_path: Optional[str] = None
 
 
 class DailyActivity(BaseModel):
