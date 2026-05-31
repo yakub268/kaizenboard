@@ -17,10 +17,13 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import CategoryEnum, ClaudeProjectTodo, ClaudeRegisteredProject, ClaudeSessionClassification, ClaudeTimeEntry, Initiative, PriorityEnum, StatusEnum
+from models import CategoryEnum, ClaudeMessage, ClaudeProjectTodo, ClaudeRegisteredProject, ClaudeSessionClassification, ClaudeTimeEntry, Initiative, PriorityEnum, StatusEnum
 from schemas import (
     BacklogItem,
     ClaudeActiveTimer,
+    ClaudeMessageCreate,
+    ClaudeMessagePatch,
+    ClaudeMessageResponse,
     ClaudeProject,
     ClaudeProjectRegister,
     ClaudeProjectTodoCreate,
@@ -1000,3 +1003,133 @@ def get_project_costs():
 @router.get("/backlog", response_model=List[BacklogItem])
 def get_backlog() -> List[BacklogItem]:
     return _parse_backlog()
+
+
+# --- Claude Messages (user-to-Claude inbox) ------------------------------
+#
+# Write path: user posts messages via the KaizenBoard UI.
+# Read path:  a SessionStart hook fetches status=unread, surfaces in terminal,
+#             marks them read with the consuming session's id.
+
+_VALID_MINDSETS = {"focused", "tired", "creative", "trading", "quick", "reflective", "other"}
+_VALID_PRIORITIES = {"low", "normal", "high"}
+_VALID_PATCH_STATUSES = {"read", "actioned", "dismissed"}
+
+
+@router.post("/messages", response_model=ClaudeMessageResponse, status_code=201)
+def create_message(payload: ClaudeMessageCreate, db: Session = Depends(get_db)):
+    if payload.mindset is not None and payload.mindset not in _VALID_MINDSETS:
+        raise HTTPException(status_code=400, detail=f"mindset must be one of {sorted(_VALID_MINDSETS)}")
+    if payload.priority not in _VALID_PRIORITIES:
+        raise HTTPException(status_code=400, detail=f"priority must be one of {sorted(_VALID_PRIORITIES)}")
+    msg = ClaudeMessage(
+        body=payload.body.strip(),
+        mindset=payload.mindset,
+        scope_slug=payload.scope_slug,
+        priority=payload.priority,
+        status="unread",
+        created_at=_utcnow(),
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+    return msg
+
+
+@router.get("/messages", response_model=List[ClaudeMessageResponse])
+def list_messages(
+    status: Optional[str] = None,
+    scope_slug: Optional[str] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    q = db.query(ClaudeMessage)
+    if status:
+        q = q.filter(ClaudeMessage.status == status)
+    if scope_slug:
+        q = q.filter(ClaudeMessage.scope_slug == scope_slug)
+    q = q.order_by(ClaudeMessage.created_at.desc()).limit(max(1, min(limit, 500)))
+    return list(q)
+
+
+@router.patch("/messages/{msg_id}", response_model=ClaudeMessageResponse)
+def update_message(msg_id: int, payload: ClaudeMessagePatch, db: Session = Depends(get_db)):
+    msg = db.query(ClaudeMessage).filter(ClaudeMessage.id == msg_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="message not found")
+    now = _utcnow()
+    if payload.status is not None:
+        if payload.status not in _VALID_PATCH_STATUSES:
+            raise HTTPException(status_code=400, detail=f"status must be one of {sorted(_VALID_PATCH_STATUSES)}")
+        msg.status = payload.status
+        if payload.status == "read" and msg.read_at is None:
+            msg.read_at = now
+    if payload.read_by_session is not None and msg.read_by_session is None:
+        msg.read_by_session = payload.read_by_session
+        if msg.read_at is None:
+            msg.read_at = now
+        if msg.status == "unread":
+            msg.status = "read"
+    if payload.claude_reply is not None:
+        msg.claude_reply = payload.claude_reply.strip()
+        msg.replied_at = now
+    db.commit()
+    db.refresh(msg)
+    return msg
+
+
+# ---------------------------------------------------------------------------
+# NEW: Hook event receivers (async POST hooks from Claude Code settings.json)
+# ---------------------------------------------------------------------------
+
+from typing import Any
+from pydantic import BaseModel as _BaseModel
+
+class ToolEventPayload(_BaseModel):
+    """Payload sent by PostToolUse HTTP hook for Edit/Write tool calls."""
+    tool: Optional[str] = None
+    cwd: Optional[str] = None
+    session_id: Optional[str] = None
+    input: Optional[Any] = None
+    output: Optional[Any] = None
+    hook_event_name: Optional[str] = None
+    # Accept any extra fields Claude Code sends
+    model_config = {"extra": "allow"}
+
+class AgentEventPayload(_BaseModel):
+    """Payload sent by SubagentStop HTTP hook."""
+    agent_name: Optional[str] = None
+    session_id: Optional[str] = None
+    parent_session_id: Optional[str] = None
+    cwd: Optional[str] = None
+    exit_code: Optional[int] = None
+    hook_event_name: Optional[str] = None
+    model_config = {"extra": "allow"}
+
+
+@router.post("/tool-events", status_code=200)
+def receive_tool_event(payload: ToolEventPayload):
+    """
+    Receives PostToolUse HTTP hook events from Claude Code for Edit/Write calls.
+    Logs to stderr for now; can be extended to write to DB or trigger n8n.
+    """
+    import sys
+    tool = payload.tool or "unknown"
+    cwd = payload.cwd or ""
+    project = cwd.rstrip("/\\").split("/")[-1].split("\\")[-1] if cwd else "?"
+    print(f"[tool-event] {tool} in {project}", file=sys.stderr)
+    return {"ok": True, "tool": tool, "project": project}
+
+
+@router.post("/agent-events", status_code=200)
+def receive_agent_event(payload: AgentEventPayload):
+    """
+    Receives SubagentStop HTTP hook events from Claude Code Agent Teams.
+    """
+    import sys
+    name = payload.agent_name or "unknown"
+    exit_code = payload.exit_code
+    cwd = payload.cwd or ""
+    project = cwd.rstrip("/\\").split("/")[-1].split("\\")[-1] if cwd else "?"
+    print(f"[agent-event] {name} stopped (exit={exit_code}) in {project}", file=sys.stderr)
+    return {"ok": True, "agent": name, "exit_code": exit_code, "project": project}

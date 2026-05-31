@@ -331,3 +331,34 @@ class WorkProjectResponse(BaseModel):
     path: Optional[str] = None
     url: Optional[str] = None
     phase: Optional[str] = None
+
+
+# --- ClaudeMessage (user-to-Claude inbox) --------------------------------
+
+class ClaudeMessageCreate(BaseModel):
+    body: str = Field(..., min_length=1, max_length=5000)
+    mindset: Optional[str] = None       # focused|tired|creative|trading|quick|reflective|other
+    scope_slug: Optional[str] = None    # project slug, null = global
+    priority: str = "normal"            # low|normal|high
+
+
+class ClaudeMessagePatch(BaseModel):
+    status: Optional[str] = None        # read|actioned|dismissed
+    claude_reply: Optional[str] = None
+    read_by_session: Optional[str] = None
+
+
+class ClaudeMessageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    body: str
+    mindset: Optional[str] = None
+    scope_slug: Optional[str] = None
+    priority: str
+    status: str
+    created_at: datetime
+    read_at: Optional[datetime] = None
+    read_by_session: Optional[str] = None
+    claude_reply: Optional[str] = None
+    replied_at: Optional[datetime] = None

@@ -201,3 +201,20 @@ class ClaudeRegisteredProject(Base):
     project_path = Column(String(500), nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow)
     updated_at = Column(DateTime, nullable=False, default=utcnow)
+
+
+class ClaudeMessage(Base):
+    """User-to-Claude inbox: messages Jacob writes that Claude reads at SessionStart."""
+    __tablename__ = "claude_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    body = Column(Text, nullable=False)
+    mindset = Column(String(50), nullable=True, index=True)     # focused, tired, creative, trading, quick, reflective, other
+    scope_slug = Column(String(100), nullable=True, index=True) # optional project slug; null = global
+    priority = Column(String(20), default="normal")              # low, normal, high
+    status = Column(String(20), default="unread", index=True)    # unread, read, actioned, dismissed
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    read_at = Column(DateTime, nullable=True)
+    read_by_session = Column(String(100), nullable=True)         # session id that first read it
+    claude_reply = Column(Text, nullable=True)                   # optional reply written at session end
+    replied_at = Column(DateTime, nullable=True)

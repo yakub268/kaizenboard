@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import InitiativeDetail from './pages/InitiativeDetail'
 import ClaudeProjects from './pages/ClaudeProjects'
 import WorkProjects from './pages/WorkProjects'
+import Comms from './pages/Comms'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="/initiative/:id" element={<InitiativeDetail />} />
           <Route path="/claude" element={<ClaudeProjects />} />
           <Route path="/work" element={<WorkProjects />} />
+          <Route path="/comms" element={<Comms />} />
         </Routes>
       </main>
     </div>

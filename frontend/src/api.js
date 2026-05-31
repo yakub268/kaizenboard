@@ -198,3 +198,19 @@ export function getTimeSummary(initiativeId) {
 export function getWorkStats() {
   return request('/work/stats');
 }
+
+// Claude Messages (user-to-Claude inbox)
+export function createClaudeMessage(payload) {
+  return request('/claude/messages', { method: 'POST', body: JSON.stringify(payload) });
+}
+export function listClaudeMessages(params = {}) {
+  const q = new URLSearchParams();
+  if (params.status) q.append('status', params.status);
+  if (params.scope_slug) q.append('scope_slug', params.scope_slug);
+  if (params.limit) q.append('limit', String(params.limit));
+  const qs = q.toString();
+  return request(`/claude/messages${qs ? `?${qs}` : ''}`);
+}
+export function patchClaudeMessage(id, payload) {
+  return request(`/claude/messages/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+}

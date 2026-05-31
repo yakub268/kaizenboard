@@ -1,23 +1,113 @@
 [
   {
-    "project": "Claude Improvement",
-    "sessions": 13,
-    "messages": 1661,
-    "input_tokens": 5742,
-    "output_tokens": 340732,
-    "cache_read_tokens": 158554615,
-    "cache_write_tokens": 7396357,
-    "estimated_cost": 402.15
+    "project": "Unclassified",
+    "sessions": 18,
+    "messages": 3218,
+    "input_tokens": 116207,
+    "output_tokens": 6153471,
+    "cache_read_tokens": 777670422,
+    "cache_write_tokens": 27194376,
+    "estimated_cost": 2136.89
   },
   {
-    "project": "Unclassified",
+    "project": "Trading Bot",
+    "sessions": 8,
+    "messages": 1933,
+    "input_tokens": 93731,
+    "output_tokens": 2375156,
+    "cache_read_tokens": 312040545,
+    "cache_write_tokens": 13272882,
+    "estimated_cost": 896.47
+  },
+  {
+    "project": "Luna Dementia Companion",
+    "sessions": 4,
+    "messages": 1185,
+    "input_tokens": 80819,
+    "output_tokens": 1743459,
+    "cache_read_tokens": 190144696,
+    "cache_write_tokens": 11461477,
+    "estimated_cost": 632.09
+  },
+  {
+    "project": "Claude Improvement",
     "sessions": 13,
-    "messages": 402,
-    "input_tokens": 1478,
-    "output_tokens": 131416,
-    "cache_read_tokens": 25120035,
-    "cache_write_tokens": 3230551,
-    "estimated_cost": 106.13
+    "messages": 1852,
+    "input_tokens": 20148,
+    "output_tokens": 1140067,
+    "cache_read_tokens": 211627333,
+    "cache_write_tokens": 7492562,
+    "estimated_cost": 486.19
+  },
+  {
+    "project": "Mirror Behavioral Tracking",
+    "sessions": 3,
+    "messages": 615,
+    "input_tokens": 80192,
+    "output_tokens": 1114462,
+    "cache_read_tokens": 95942056,
+    "cache_write_tokens": 2462552,
+    "estimated_cost": 274.87
+  },
+  {
+    "project": "KaizenBoard",
+    "sessions": 4,
+    "messages": 552,
+    "input_tokens": 45172,
+    "output_tokens": 847292,
+    "cache_read_tokens": 66657001,
+    "cache_write_tokens": 3357722,
+    "estimated_cost": 227.17
+  },
+  {
+    "project": "yakub268 profile",
+    "sessions": 2,
+    "messages": 254,
+    "input_tokens": 69810,
+    "output_tokens": 612944,
+    "cache_read_tokens": 38913420,
+    "cache_write_tokens": 2143302,
+    "estimated_cost": 145.57
+  },
+  {
+    "project": "h1v3 runtime",
+    "sessions": 1,
+    "messages": 264,
+    "input_tokens": 409,
+    "output_tokens": 285410,
+    "cache_read_tokens": 38345338,
+    "cache_write_tokens": 2261240,
+    "estimated_cost": 121.33
+  },
+  {
+    "project": "kidneycare",
+    "sessions": 2,
+    "messages": 254,
+    "input_tokens": 1701,
+    "output_tokens": 399420,
+    "cache_read_tokens": 30088643,
+    "cache_write_tokens": 2457783,
+    "estimated_cost": 121.2
+  },
+  {
+    "project": "jacobx personal assistant",
+    "sessions": 1,
+    "messages": 243,
+    "input_tokens": 446,
+    "output_tokens": 177878,
+    "cache_read_tokens": 25248092,
+    "cache_write_tokens": 718324,
+    "estimated_cost": 64.69
+  },
+  {
+    "project": "Open Source Contributions",
+    "sessions": 2,
+    "messages": 93,
+    "input_tokens": 238,
+    "output_tokens": 118678,
+    "cache_read_tokens": 6801570,
+    "cache_write_tokens": 1008494,
+    "estimated_cost": 38.02
   },
   {
     "project": "Windows MCP",
@@ -30,23 +120,23 @@
     "estimated_cost": 15.35
   },
   {
-    "project": "Trading Bot",
-    "sessions": 1,
-    "messages": 28,
-    "input_tokens": 60,
-    "output_tokens": 8136,
-    "cache_read_tokens": 1164381,
-    "cache_write_tokens": 195118,
-    "estimated_cost": 6.02
+    "project": "Claude Multi-Agent Bridge",
+    "sessions": 2,
+    "messages": 44,
+    "input_tokens": 84,
+    "output_tokens": 51560,
+    "cache_read_tokens": 2064181,
+    "cache_write_tokens": 226392,
+    "estimated_cost": 11.21
   },
   {
-    "project": "Claude Multi-Agent Bridge",
+    "project": "Kalshi MCP",
     "sessions": 1,
-    "messages": 3,
-    "input_tokens": 9,
-    "output_tokens": 788,
-    "cache_read_tokens": 42961,
-    "cache_write_tokens": 47273,
-    "estimated_cost": 1.01
+    "messages": 7,
+    "input_tokens": 27,
+    "output_tokens": 4914,
+    "cache_read_tokens": 267154,
+    "cache_write_tokens": 54056,
+    "estimated_cost": 1.78
   }
 ]

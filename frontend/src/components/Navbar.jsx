@@ -6,6 +6,7 @@ import {
   ArrowTrendingUpIcon,
   SparklesIcon,
   BriefcaseIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 
 const navItems = [
@@ -13,6 +14,7 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: ChartBarIcon },
   { to: '/work', label: 'Work Projects', icon: BriefcaseIcon },
   { to: '/claude', label: 'Claude Projects', icon: SparklesIcon },
+  { to: '/comms', label: 'Comms', icon: ChatBubbleLeftRightIcon },
 ]
 
 export default function Navbar() {

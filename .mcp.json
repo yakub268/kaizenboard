@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\yakub\\AppData\\Roaming\\npm\\node_modules\\@playwright\\mcp\\cli.js",
+        "--browser",
+        "chromium",
+        "--headless"
+      ]
+    }
+  }
+}
