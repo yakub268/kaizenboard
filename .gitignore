@@ -17,3 +17,7 @@ frontend/dist/
 # IDE
 .vscode/
 .idea/
+
+# Regenerated daily by the KaizenBoard-CostCalc task -- local only
+backend/project_costs.json
+backend/project_costs_history.json
